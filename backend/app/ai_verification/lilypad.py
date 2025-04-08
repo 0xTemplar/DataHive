@@ -12,8 +12,7 @@ from langchain_core.prompt_values import ChatPromptValue
 from langchain_core.rate_limiters import BaseRateLimiter
 from langchain_core.runnables.base import Runnable
 from langchain_core.runnables.config import RunnableConfig
-from langchain_openai import ChatOpenAI  # used as the underlying Chat API client
-from app.core import LILYPAD_API_KEY  # your API key, assumed to be defined elsewhere
+from app.core import LILYPAD_API_KEY
 
 # List of approved models based on the documentation response JSON.
 SUPPORTED_MODELS = {
@@ -250,8 +249,8 @@ class LilypadLLMWrapper(Runnable):
         Uses LilypadClient to perform a chat_completion request and converts
         the response into a LangChain BaseMessage.
         """
-        # Convert the LanguageModelInput into a list of message dicts.
-        # It is assumed that input.to_messages() returns a list of messages with
+        # Converting the LanguageModelInput into a list of message dicts.
+        # I'm assuming that input.to_messages() returns a list of messages with
         # each message being a dict containing "role" and "content".
         messages = input.to_messages()  # e.g., [{"role": "system", "content": "you are ..."}, {...}]
         response = self.client.chat_completion(
