@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Depends, Form, UploadFile, File
 from sqlalchemy.orm import Session
 from app.campaigns.models import Campaign
 from app.core.database import get_session
-from app.core.constants import OPENAI_API_KEY
+from app.core.constants import LILYPAD_API_KEY
 from redis.asyncio import Redis
 
 from app.ai_verification.services import AIVerificationSystem
