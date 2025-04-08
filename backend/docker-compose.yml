@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  web:
+    image: artemys
+    build: 
+      context: .                # Use the root directory for building the image
+      dockerfile: Dockerfile    # Use your Dockerfile
+    # volumes:
+    #   - .:/code
+    ports:
+      - "8000:8000"
+    environment:
+      SQLALCHEMY_DATABASE_URL: ${SQLALCHEMY_DATABASE_URL}
+      BASE_URL: ${BASE_URL}
+      API_KEY: ${API_KEY}
+      REDIS_URL: ${BASE_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+
+  redis:
+    image: redis:alpine
+
+  celery_worker:
+    build: .
+    command: celery -A app.celery.celery.celery_app worker --loglevel=info
+    depends_on:
+      - redis
+    environment:
+      SQLALCHEMY_DATABASE_URL: ${SQLALCHEMY_DATABASE_URL}
+      BASE_URL: ${BASE_URL}
+      API_KEY: ${API_KEY}
+      REDIS_URL: ${BASE_URL}
+
+  celery_beat:
+    build: .
+    command: celery -A app.celery.celery.celery_app beat --loglevel=info
+    depends_on:
+      - redis
+    environment:
+      SQLALCHEMY_DATABASE_URL: ${SQLALCHEMY_DATABASE_URL}
+      BASE_URL: ${BASE_URL}
+      API_KEY: ${API_KEY}
+      REDIS_URL: ${BASE_URL}
