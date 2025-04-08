@@ -15,7 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.campaigns.models import Campaign, Contribution
 from app.ai_verification.llm import get_long_context_llm
-from app.core.constants import OPENAI_API_KEY
+from app.core.constants import LILYPAD_API_KEY
 from openai import OpenAI
 # Using the asyncio version of redis
 from redis.asyncio import Redis
@@ -39,7 +39,7 @@ class EvaluationScore(BaseModel):
                 self.grammatical_accuracy + self.semantic_relevance + self.sentiment_diversity) / 7
 
 class AIVerificationSystem:
-    def __init__(self, redis_pool: Redis, openai_api_key: str = OPENAI_API_KEY):
+    def __init__(self, redis_pool: Redis, openai_api_key: str = LILYPAD_API_KEY):
         self.openai_api_key = openai_api_key
         openai.api_key = openai_api_key
         self.redis_pool = redis_pool
