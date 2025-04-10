@@ -13,6 +13,8 @@ from app.core.constants import LILYPAD_API_KEY
 from redis.asyncio import Redis
 
 from app.ai_verification.services import AIVerificationSystem
+from app.ai_verification.akave import AkaveLinkAPI
+# from app.ai_verification.agent import get_long_context_llm, get_fast_llm, get_code_llm
 from app.core.redis import get_redis_pool  # Your redis dependency
 
 
@@ -85,6 +87,8 @@ async def verify_text_contribution(
         ).first()
         if not campaign:
             raise HTTPException(status_code=404, detail="Campaign not found")
+
+        storage = AkaveLinkAPI()
         
         temp_file_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
         with open(temp_file_path, "wb") as buffer:
@@ -94,13 +98,15 @@ async def verify_text_contribution(
         try:
             # Even though this endpoint is intended for text documents,
             # we call the common async verify method so that caching and fairness adjustment apply.
+            bucket_name = str(campaign.bucket_name)
             verification_score = await verifier.verify(campaign, temp_file_path, wallet_address)
+            store = storage.upload_file(bucket_name, temp_file_path)
         except Exception as e:
             os.remove(temp_file_path)
             raise HTTPException(status_code=500, detail=f"Text document verification failed: {str(e)}")
         
         os.remove(temp_file_path)
-        return {"verification_score": verification_score}
+        return {"verification_score": verification_score, "store": store}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to verify text contribution: {str(e)}")
@@ -127,6 +133,8 @@ async def verify_image_contribution(
 
         if not campaign:
             raise HTTPException(status_code=404, detail="Campaign not found")
+
+        storage = AkaveLinkAPI()
         
         temp_file_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
         with open(temp_file_path, "wb") as buffer:
@@ -134,13 +142,22 @@ async def verify_image_contribution(
         
         verifier = AIVerificationSystem(redis_pool=redis_pool)
         try:
+            bucket_name = str(campaign.bucket_name)
             verification_score = await verifier.verify(campaign, temp_file_path, wallet_address)
+            store = storage.upload_file(bucket_name, temp_file_path)
         except Exception as e:
             os.remove(temp_file_path)
             raise HTTPException(status_code=500, detail=f"Image verification failed: {str(e)}")
         
         os.remove(temp_file_path)
-        return {"verification_score": verification_score}
+        return {"verification_score": verification_score, "store": store}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to verify image contribution: {str(e)}")
+
+
+
+"""
+- We need to return RootCID iof the uploaded file 
+- we also need to return reason if the verification is unsuccessful
+"""

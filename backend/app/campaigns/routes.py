@@ -9,6 +9,7 @@ from app.campaigns.models import Campaign, Contribution, Activity
 from app.campaigns.schemas import CampaignCreate, CampaignResponse, ContributionCreate, ContributionResponse, CampaignsActiveResponse, ContributionsListResponse, WalletCampaignsResponse, WeeklyAnalyticsResponse
 from app.campaigns.services import serialize_campaign, track_campaign_activity_overall, track_contribution_activity, get_quality_score_category
 from app.core.database import get_session
+from app.ai_verification import AkaveLinkAPI
 
 
 logging.basicConfig(level=logging.INFO)
@@ -42,7 +43,7 @@ def get_all_campaigns(db: Session = Depends(get_session)):
     for campaign in db_campaigns:
         contributions_count = len(campaign.contributions)
         unique_count = db.query(func.count(func.distinct(Contribution.contributor))) \
-                         .filter(Contribution.campaign_id == campaign.id).scalar()
+            .filter(Contribution.campaign_id == campaign.id).scalar()
         # Extend the serialized campaign with the unique contributions count.
         serialized = serialize_campaign(campaign, contributions_count)
         serialized["unique_contributions_count"] = unique_count
@@ -85,13 +86,19 @@ def get_campaigns_created_by_wallet(
 
 @router.post("/create-campaigns", response_model=CampaignResponse)
 def create_campaign(campaign: CampaignCreate, db: Session = Depends(get_session)):
-    db_campaign = Campaign(**campaign.dict())
-    db_campaign.is_active = True
-    db.add(db_campaign)
-    db.commit()
-    db.refresh(db_campaign)
-    # New campaign: no contributions, so both counts are 0.
-    return {**serialize_campaign(db_campaign, 0), "unique_contributions_count": 0}
+    try:
+        storage = AkaveLinkAPI()
+        db_campaign = Campaign(**campaign.dict())
+        db_campaign.is_active = True
+        db_campaign.bucket_name = campaign.title.lower().replace(" ", "_")
+        bucket = storage.create_bucket(str(db_campaign.bucket_name))
+        db.add(db_campaign)
+        db.commit()
+        db.refresh(db_campaign)
+        # New campaign: no contributions, so both counts are 0.
+        return {**serialize_campaign(db_campaign, 0), "unique_contributions_count": 0}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create campaign: {str(e)}")
 
 
 @router.get("/active", response_model=List[CampaignsActiveResponse])
