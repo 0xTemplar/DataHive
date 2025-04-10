@@ -6,7 +6,7 @@ class AkaveLinkAPIError(Exception):
     pass
 
 class AkaveLinkAPI:
-    def __init__(self, base_url="http://localhost:8000"):
+    def __init__(self, base_url="http://ec2-44-200-196-16.compute-1.amazonaws.com:8000"):
         """
         Initialize the API client.
         
@@ -175,7 +175,7 @@ class AkaveLinkAPI:
 # ----------------------------------
 if __name__ == "__main__":
     # Instantiate the API client (make sure the Docker container is running)
-    api = AkaveLinkAPI(base_url="http://localhost:8000")
+    api = AkaveLinkAPI()
     bucket_name = "data"
     
     # try:
@@ -195,11 +195,11 @@ if __name__ == "__main__":
         print("Error listing buckets:", err)
 
 
-    try:
-        # Store to bucket
-        print("\nStoring file to bucket...")
-        file_path = "/Users/naija/Documents/gigs/DataHive/backend/books/_OceanofPDF.com_I_Knocked_Up_Satans_Daughter_-_Carlton_Mellick.pdf"
-        upload_resp = api.upload_file(bucket_name, file_path)
-        print("Upload Response:", upload_resp)
-    except AkaveLinkAPIError as err:
-        print("Error uploading file:", err)
+    # try:
+    #     # Store to bucket
+    #     print("\nStoring file to bucket...")
+    #     file_path = "/Users/naija/Documents/gigs/DataHive/backend/books/_OceanofPDF.com_I_Knocked_Up_Satans_Daughter_-_Carlton_Mellick.pdf"
+    #     upload_resp = api.upload_file(bucket_name, file_path)
+    #     print("Upload Response:", upload_resp)
+    # except AkaveLinkAPIError as err:
+    #     print("Error uploading file:", err)
