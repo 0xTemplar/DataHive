@@ -7,6 +7,8 @@ __pycache__/
 *.so
 
 books/
+llm.py
+/app/ai_verification/llm.py
 
 # Distribution / packaging
 .Python
