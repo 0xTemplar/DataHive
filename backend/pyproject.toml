@@ -26,7 +26,8 @@ dependencies = [
     "redis (>=5.2.1,<6.0.0)",
     "python-docx (>=1.1.2,<2.0.0)",
     "crewai (>=0.108.0,<0.109.0)",
-    "langgraph (>=0.3.25,<0.4.0)"
+    "langgraph (>=0.3.25,<0.4.0)",
+    "scikit-learn (>=1.6.1,<2.0.0)"
 ]
 
 [tool.poetry.dependencies]

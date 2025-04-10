@@ -22,6 +22,7 @@ class CampaignCreate(BaseModel):
 class CampaignResponse(CampaignCreate):
     campaign_id: str
     is_active: bool
+    bucket_name: str
     current_contributions: int
     unique_contributions_count: int
     created_at: datetime

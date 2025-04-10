@@ -9,6 +9,7 @@ class Campaign(Base):
     __tablename__ = 'campaigns'
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    bucket_name = Column(String, index=True)
     onchain_campaign_id = Column(String, index=True)
     creator_wallet_address = Column(String, index=True) 
     title = Column(String, index=True)
@@ -41,7 +42,8 @@ class Contribution(Base):
     onchain_contribution_id = Column(String, index=True, nullable=True)
     campaign_id = Column(String, ForeignKey("campaigns.id"), nullable=False)
     contributor = Column(String, index=True)
-    data_url = Column(String)
+    data_url = Column(String, index=True, nullable=True)
+    file_name_url = Column(String, index=True, nullable=True)
     transaction_hash = Column(String)
     ai_verification_score = Column(Float, nullable=True)
     reputation_score = Column(Float, nullable=True)
