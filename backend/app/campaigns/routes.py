@@ -9,7 +9,7 @@ from app.campaigns.models import Campaign, Contribution, Activity
 from app.campaigns.schemas import CampaignCreate, CampaignResponse, ContributionCreate, ContributionResponse, CampaignsActiveResponse, ContributionsListResponse, WalletCampaignsResponse, WeeklyAnalyticsResponse
 from app.campaigns.services import serialize_campaign, track_campaign_activity_overall, track_contribution_activity, get_quality_score_category
 from app.core.database import get_session
-from app.ai_verification import AkaveLinkAPI
+from app.ai_verification import AkaveLinkAPI, AkaveLinkAPIError
 
 
 logging.basicConfig(level=logging.INFO)
@@ -39,15 +39,46 @@ def get_all_campaigns(db: Session = Depends(get_session)):
         .order_by(Campaign.created_at.desc())
         .all()
     )
+    
+    storage = AkaveLinkAPI()
     result = []
+    
     for campaign in db_campaigns:
-        contributions_count = len(campaign.contributions)
-        unique_count = db.query(func.count(func.distinct(Contribution.contributor))) \
-            .filter(Contribution.campaign_id == campaign.id).scalar()
-        # Extend the serialized campaign with the unique contributions count.
-        serialized = serialize_campaign(campaign, contributions_count)
-        serialized["unique_contributions_count"] = unique_count
-        result.append(serialized)
+        try:
+            contributions_count = len(campaign.contributions)
+            
+            # Only create bucket if it doesn't exist
+            if not campaign.bucket_name:
+                bucket_name = campaign.title.lower().replace(" ", "_")
+                
+                # Attempt bucket creation
+                try:
+                    bucket_data = storage.create_bucket(bucket_name)
+                    campaign.bucket_name = bucket_name
+                    db.commit()
+                except AkaveLinkAPIError as e:
+                    if "already exists" in str(e):
+                        # Bucket exists, just assign the name
+                        campaign.bucket_name = bucket_name
+                        db.commit()
+                    else:
+                        # Log error but continue processing
+                        print(f"Error creating bucket: {str(e)}")
+                        campaign.bucket_name = None
+
+            # Get unique contributions count
+            unique_count = db.query(func.count(func.distinct(Contribution.contributor))) \
+                .filter(Contribution.campaign_id == campaign.id).scalar()
+                
+            # Serialize campaign
+            serialized = serialize_campaign(campaign, contributions_count)
+            serialized["unique_contributions_count"] = unique_count
+            result.append(serialized)
+            
+        except Exception as e:
+            print(f"Error processing campaign {campaign.id}: {str(e)}")
+            continue
+
     return result
 
 
