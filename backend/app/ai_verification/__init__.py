@@ -1,1 +1,1 @@
-from app.ai_verification.akave import AkaveLinkAPI
+from app.ai_verification.akave import AkaveLinkAPI, AkaveLinkAPIError
