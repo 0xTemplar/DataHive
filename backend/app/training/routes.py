@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@app.post("/start-training")
+@router.post("/start-training")
 def start_training(request: TrainingRequest, db: Session = Depends(get_session)):
     # Look up the campaign using the on-chain campaign ID
     campaign = db.query(Campaign).filter(
@@ -47,7 +47,7 @@ def start_training(request: TrainingRequest, db: Session = Depends(get_session))
     return {"message": "Training started", "training_status_id": training_status.id}
 
 
-@app.get("/training-status/{status_id}")
+@router.get("/training-status/{status_id}")
 def get_training_status(status_id: str, db: Session = Depends(get_session)):
     training_status = db.query(TrainingStatus).filter(TrainingStatus.id == status_id).first()
     if not training_status:
