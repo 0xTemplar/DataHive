@@ -67,6 +67,148 @@ async def verify_contribution(
     return {"verification_score": verification_score}
 
 
+# @router.post("/contributions/verify-text", summary="Upload a text-based document to verify a contribution")
+# async def verify_text_contribution(
+#     onchain_campaign_id: str = Form(...),
+#     wallet_address: str = Form(...),
+#     file: UploadFile = File(...),
+#     db: Session = Depends(get_session),
+#     redis_pool: Redis = Depends(get_redis_pool)
+# ):
+#     """
+#     Endpoint to upload a text-based document (PDF, CSV, TXT, DOC, DOCX) along with an onchain_campaign_id
+#     and wallet_address. Uses the caching-enabled verification method.
+#     """
+#     logger.info(f"Received onchain_campaign_id: {onchain_campaign_id}")
+#     logger.info(f"Received wallet_address: {wallet_address}")
+#     try:
+#         campaign = db.query(Campaign).filter(
+#             Campaign.onchain_campaign_id == onchain_campaign_id
+#         ).first()
+#         if not campaign:
+#             raise HTTPException(status_code=404, detail="Campaign not found")
+
+#         storage = AkaveLinkAPI()
+        
+#         temp_file_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
+#         with open(temp_file_path, "wb") as buffer:
+#             shutil.copyfileobj(file.file, buffer)
+        
+#         verifier = AIVerificationSystem(redis_pool=redis_pool)
+#         try:
+#             # Even though this endpoint is intended for text documents,
+#             # we call the common async verify method so that caching and fairness adjustment apply.
+#             bucket_name = str(campaign.bucket_name)
+#             verification_score = await verifier.verify(campaign, temp_file_path, wallet_address)
+#             store = storage.upload_file(bucket_name, temp_file_path)
+#         except Exception as e:
+#             os.remove(temp_file_path)
+#             raise HTTPException(status_code=500, detail=f"Text document verification failed: {str(e)}")
+        
+#         os.remove(temp_file_path)
+#         return {"verification_score": verification_score, "store": store}
+
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to verify text contribution: {str(e)}")
+
+
+# @router.post("/contributions/verify-image", summary="Upload an image to verify a contribution")
+# async def verify_image_contribution(
+#     onchain_campaign_id: str = Form(...),
+#     wallet_address: str = Form(...),
+#     file: UploadFile = File(...),
+#     db: Session = Depends(get_session),
+#     redis_pool: Redis = Depends(get_redis_pool)
+# ):
+#     """
+#     Endpoint to upload an image (PNG, JPG, JPEG, WEBP) along with an onchain_campaign_id
+#     and wallet_address. Uses the caching-enabled verification method.
+#     """
+#     logger.info(f"Received onchain_campaign_id: {onchain_campaign_id}")
+#     logger.info(f"Received wallet_address: {wallet_address}")
+#     try:
+#         campaign = db.query(Campaign).filter(
+#             Campaign.onchain_campaign_id == onchain_campaign_id
+#         ).first()
+
+#         if not campaign:
+#             raise HTTPException(status_code=404, detail="Campaign not found")
+
+#         storage = AkaveLinkAPI()
+        
+#         temp_file_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
+#         with open(temp_file_path, "wb") as buffer:
+#             shutil.copyfileobj(file.file, buffer)
+        
+#         verifier = AIVerificationSystem(redis_pool=redis_pool)
+#         try:
+#             bucket_name = str(campaign.bucket_name)
+#             verification_score = await verifier.verify(campaign, temp_file_path, wallet_address)
+#             store = storage.upload_file(bucket_name, temp_file_path)
+#         except Exception as e:
+#             os.remove(temp_file_path)
+#             raise HTTPException(status_code=500, detail=f"Image verification failed: {str(e)}")
+        
+#         os.remove(temp_file_path)
+#         return {"verification_score": verification_score, "store": store}
+
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to verify image contribution: {str(e)}")
+
+# @router.post("/contributions/verify-csv", summary="Upload a CSV file to verify a contribution")
+# async def verify_csv_contribution(
+#     onchain_campaign_id: str = Form(...),
+#     wallet_address: str = Form(...),
+#     file: UploadFile = File(...),
+#     db: Session = Depends(get_session),
+#     redis_pool: Redis = Depends(get_redis_pool)
+# ):
+#     """
+#     Endpoint to upload a CSV file along with an onchain_campaign_id and wallet_address.
+#     Uses the caching-enabled CSV verification method that includes additional CSV processing.
+#     """
+#     logger.info(f"Received onchain_campaign_id: {onchain_campaign_id}")
+#     logger.info(f"Received wallet_address: {wallet_address}")
+
+#     try:
+#         campaign = db.query(Campaign).filter(
+#             Campaign.onchain_campaign_id == onchain_campaign_id
+#         ).first()
+#         if not campaign:
+#             raise HTTPException(status_code=404, detail="Campaign not found")
+
+#         storage = AkaveLinkAPI()
+        
+#         temp_file_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
+#         with open(temp_file_path, "wb") as buffer:
+#             shutil.copyfileobj(file.file, buffer)
+#         logger.info(f"Temporary file created at {temp_file_path}.")
+
+#         verifier = AIVerificationSystem(redis_pool=redis_pool)
+#         try:
+#             bucket_name = str(campaign.bucket_name)
+#             # Run the CSV verification in a thread (since verify_csv_document is sync)
+#             # This method includes additional CSV processing as defined in _extract_csv_content.
+#             verification_score = await asyncio.to_thread(
+#                 verifier.verify_csv_document, campaign, temp_file_path
+#             )
+#             logger.info(f"CSV verification score obtained: {verification_score}.")
+#             store = storage.upload_file(bucket_name, temp_file_path)
+#             logger.info(f"File uploaded to storage bucket: {bucket_name}.")
+#         except Exception as e:
+#             logger.error(f"CSV file verification failed: {str(e)}")
+#             os.remove(temp_file_path)
+#             raise HTTPException(status_code=500, detail=f"CSV file verification failed: {str(e)}")
+        
+#         os.remove(temp_file_path)
+#         logger.info(f"Temporary file {temp_file_path} removed after processing.")
+#         return {"verification_score": verification_score, "store": store}
+
+#     except Exception as e:
+#         logger.error(f"Failed to verify CSV contribution: {str(e)}")
+#         raise HTTPException(status_code=500, detail=f"Failed to verify CSV contribution: {str(e)}")
+
+
 @router.post("/contributions/verify-text", summary="Upload a text-based document to verify a contribution")
 async def verify_text_contribution(
     onchain_campaign_id: str = Form(...),
@@ -75,101 +217,8 @@ async def verify_text_contribution(
     db: Session = Depends(get_session),
     redis_pool: Redis = Depends(get_redis_pool)
 ):
-    """
-    Endpoint to upload a text-based document (PDF, CSV, TXT, DOC, DOCX) along with an onchain_campaign_id
-    and wallet_address. Uses the caching-enabled verification method.
-    """
     logger.info(f"Received onchain_campaign_id: {onchain_campaign_id}")
     logger.info(f"Received wallet_address: {wallet_address}")
-    try:
-        campaign = db.query(Campaign).filter(
-            Campaign.onchain_campaign_id == onchain_campaign_id
-        ).first()
-        if not campaign:
-            raise HTTPException(status_code=404, detail="Campaign not found")
-
-        storage = AkaveLinkAPI()
-        
-        temp_file_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
-        with open(temp_file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        
-        verifier = AIVerificationSystem(redis_pool=redis_pool)
-        try:
-            # Even though this endpoint is intended for text documents,
-            # we call the common async verify method so that caching and fairness adjustment apply.
-            bucket_name = str(campaign.bucket_name)
-            verification_score = await verifier.verify(campaign, temp_file_path, wallet_address)
-            store = storage.upload_file(bucket_name, temp_file_path)
-        except Exception as e:
-            os.remove(temp_file_path)
-            raise HTTPException(status_code=500, detail=f"Text document verification failed: {str(e)}")
-        
-        os.remove(temp_file_path)
-        return {"verification_score": verification_score, "store": store}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to verify text contribution: {str(e)}")
-
-
-@router.post("/contributions/verify-image", summary="Upload an image to verify a contribution")
-async def verify_image_contribution(
-    onchain_campaign_id: str = Form(...),
-    wallet_address: str = Form(...),
-    file: UploadFile = File(...),
-    db: Session = Depends(get_session),
-    redis_pool: Redis = Depends(get_redis_pool)
-):
-    """
-    Endpoint to upload an image (PNG, JPG, JPEG, WEBP) along with an onchain_campaign_id
-    and wallet_address. Uses the caching-enabled verification method.
-    """
-    logger.info(f"Received onchain_campaign_id: {onchain_campaign_id}")
-    logger.info(f"Received wallet_address: {wallet_address}")
-    try:
-        campaign = db.query(Campaign).filter(
-            Campaign.onchain_campaign_id == onchain_campaign_id
-        ).first()
-
-        if not campaign:
-            raise HTTPException(status_code=404, detail="Campaign not found")
-
-        storage = AkaveLinkAPI()
-        
-        temp_file_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
-        with open(temp_file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        
-        verifier = AIVerificationSystem(redis_pool=redis_pool)
-        try:
-            bucket_name = str(campaign.bucket_name)
-            verification_score = await verifier.verify(campaign, temp_file_path, wallet_address)
-            store = storage.upload_file(bucket_name, temp_file_path)
-        except Exception as e:
-            os.remove(temp_file_path)
-            raise HTTPException(status_code=500, detail=f"Image verification failed: {str(e)}")
-        
-        os.remove(temp_file_path)
-        return {"verification_score": verification_score, "store": store}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to verify image contribution: {str(e)}")
-
-@router.post("/contributions/verify-csv", summary="Upload a CSV file to verify a contribution")
-async def verify_csv_contribution(
-    onchain_campaign_id: str = Form(...),
-    wallet_address: str = Form(...),
-    file: UploadFile = File(...),
-    db: Session = Depends(get_session),
-    redis_pool: Redis = Depends(get_redis_pool)
-):
-    """
-    Endpoint to upload a CSV file along with an onchain_campaign_id and wallet_address.
-    Uses the caching-enabled CSV verification method that includes additional CSV processing.
-    """
-    logger.info(f"Received onchain_campaign_id: {onchain_campaign_id}")
-    logger.info(f"Received wallet_address: {wallet_address}")
-
     try:
         campaign = db.query(Campaign).filter(
             Campaign.onchain_campaign_id == onchain_campaign_id
@@ -186,23 +235,98 @@ async def verify_csv_contribution(
 
         verifier = AIVerificationSystem(redis_pool=redis_pool)
         try:
-            bucket_name = str(campaign.bucket_name)
-            # Run the CSV verification in a thread (since verify_csv_document is sync)
-            # This method includes additional CSV processing as defined in _extract_csv_content.
-            verification_score = await asyncio.to_thread(
-                verifier.verify_csv_document, campaign, temp_file_path
-            )
-            logger.info(f"CSV verification score obtained: {verification_score}.")
-            store = storage.upload_file(bucket_name, temp_file_path)
-            logger.info(f"File uploaded to storage bucket: {bucket_name}.")
+            # Use the generic verify method which now returns a SimilarityScore
+            evaluation = await verifier.verify(campaign, temp_file_path, wallet_address)
+            store = storage.upload_file(str(campaign.bucket_name), temp_file_path)
+            logger.info("Text document verification and storage completed successfully.")
         except Exception as e:
-            logger.error(f"CSV file verification failed: {str(e)}")
+            os.remove(temp_file_path)
+            raise HTTPException(status_code=500, detail=f"Text document verification failed: {str(e)}")
+        
+        os.remove(temp_file_path)
+        return {"verification_score": evaluation.score, "verification_reason": evaluation.reason, "store": store}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to verify text contribution: {str(e)}")
+
+
+@router.post("/contributions/verify-image", summary="Upload an image to verify a contribution")
+async def verify_image_contribution(
+    onchain_campaign_id: str = Form(...),
+    wallet_address: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    redis_pool: Redis = Depends(get_redis_pool)
+):
+    logger.info(f"Received onchain_campaign_id: {onchain_campaign_id}")
+    logger.info(f"Received wallet_address: {wallet_address}")
+    try:
+        campaign = db.query(Campaign).filter(
+            Campaign.onchain_campaign_id == onchain_campaign_id
+        ).first()
+
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+
+        storage = AkaveLinkAPI()
+        
+        temp_file_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
+        with open(temp_file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        logger.info(f"Temporary file created at {temp_file_path}.")
+
+        verifier = AIVerificationSystem(redis_pool=redis_pool)
+        try:
+            evaluation = await asyncio.to_thread(verifier.verify, campaign, temp_file_path, wallet_address)
+            store = storage.upload_file(str(campaign.bucket_name), temp_file_path)
+            logger.info("Image verification and storage completed successfully.")
+        except Exception as e:
+            os.remove(temp_file_path)
+            raise HTTPException(status_code=500, detail=f"Image verification failed: {str(e)}")
+        
+        os.remove(temp_file_path)
+        return {"verification_score": evaluation.score, "verification_reason": evaluation.reason, "store": store}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to verify image contribution: {str(e)}")
+
+
+@router.post("/contributions/verify-csv", summary="Upload a CSV file to verify a contribution")
+async def verify_csv_contribution(
+    onchain_campaign_id: str = Form(...),
+    wallet_address: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    redis_pool: Redis = Depends(get_redis_pool)
+):
+    logger.info(f"Received onchain_campaign_id: {onchain_campaign_id}")
+    logger.info(f"Received wallet_address: {wallet_address}")
+    try:
+        campaign = db.query(Campaign).filter(
+            Campaign.onchain_campaign_id == onchain_campaign_id
+        ).first()
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+
+        storage = AkaveLinkAPI()
+        
+        temp_file_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
+        with open(temp_file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        logger.info(f"Temporary file created at {temp_file_path}.")
+
+        verifier = AIVerificationSystem(redis_pool=redis_pool)
+        try:
+            # Use the CSV-specific workflow via the generic verify() method.
+            evaluation = await asyncio.to_thread(verifier.verify, campaign, temp_file_path, wallet_address)
+            store = storage.upload_file(str(campaign.bucket_name), temp_file_path)
+            logger.info("CSV document verification and storage completed successfully.")
+        except Exception as e:
             os.remove(temp_file_path)
             raise HTTPException(status_code=500, detail=f"CSV file verification failed: {str(e)}")
         
         os.remove(temp_file_path)
-        logger.info(f"Temporary file {temp_file_path} removed after processing.")
-        return {"verification_score": verification_score, "store": store}
+        return {"verification_score": evaluation.score, "verification_reason": evaluation.reason, "store": store}
 
     except Exception as e:
         logger.error(f"Failed to verify CSV contribution: {str(e)}")
