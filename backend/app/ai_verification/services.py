@@ -11,253 +11,386 @@
 # import pandas as pd
 # from pydantic import BaseModel
 # from docx import Document
+# from typing import TypedDict, Annotated
+# from langgraph.graph import StateGraph, END
+# from langchain_core.messages import HumanMessage, SystemMessage
 # from langchain_core.prompts import ChatPromptTemplate
 
-# from app.campaigns.models import Campaign, Contribution
-# from app.ai_verification.llm import get_long_context_llm
+# from app.campaigns.models import Campaign
+# from app.ai_verification.lilypad import get_fast_llm, get_long_context_llm, get_code_llm, get_vision_llm
 # from app.core.constants import LILYPAD_API_KEY
 # from openai import OpenAI
-# # Using the asyncio version of redis
 # from redis.asyncio import Redis
 
-# # Models for LLM output
 # class SimilarityScore(BaseModel):
 #     score: float
 #     reason: str
-
-# class EvaluationScore(BaseModel):
-#     accuracy: float
-#     alignment: float
-#     relevance: float
-#     word_count_compliance: float
-#     grammatical_accuracy: float
-#     semantic_relevance: float
-#     sentiment_diversity: float
-#     reason: str
-
-#     @property
-#     def final_score(self) -> float:
-#         return (self.accuracy + self.alignment + self.relevance + self.word_count_compliance +
-#                 self.grammatical_accuracy + self.semantic_relevance + self.sentiment_diversity) / 7
 
 # class AIVerificationSystem:
 #     def __init__(self, redis_pool: Redis, openai_api_key: str = LILYPAD_API_KEY):
 #         self.openai_api_key = openai_api_key
 #         openai.api_key = openai_api_key
 #         self.redis_pool = redis_pool
-
-#         # Set up logging
+#         self.researcher = get_long_context_llm()
+#         self.writer = get_fast_llm()
+#         self.qa_engineer = get_code_llm()
+#         self.vision_model = get_vision_llm()
 #         self.logger = logging.getLogger(__name__)
 #         self.logger.setLevel(logging.INFO)
-#         ch = logging.StreamHandler()
-#         ch.setLevel(logging.INFO)
-#         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-#         ch.setFormatter(formatter)
-#         self.logger.addHandler(ch)
 
 #     def hash_document(self, file_path: str) -> str:
-#         """
-#         Hash the document file using SHA256.
-#         """
 #         import hashlib
 #         hash_sha256 = hashlib.sha256()
 #         with open(file_path, "rb") as f:
 #             for chunk in iter(lambda: f.read(4096), b""):
 #                 hash_sha256.update(chunk)
-#         file_hash = hash_sha256.hexdigest()
-#         self.logger.info(f"Computed file hash: {file_hash}")
-#         return file_hash
+#         return hash_sha256.hexdigest()
 
 #     async def check_cache(self, wallet_address: str, file_hash: str) -> float:
-#         """
-#         Check if a verification score is cached for this wallet and file hash.
-#         """
 #         cache_key = f"{wallet_address}:{file_hash}"
-#         cached_score = await self.redis_pool.get(cache_key)
-#         if cached_score is not None:
-#             self.logger.info(f"Cache hit for key: {cache_key}")
-#             return float(cached_score)
-#         self.logger.info(f"Cache miss for key: {cache_key}")
-#         return None
+#         return await self.redis_pool.get(cache_key)
 
 #     async def store_in_cache(self, wallet_address: str, file_hash: str, score: float):
-#         """
-#         Store the verification score in Redis with a TTL (24 hours).
-#         """
 #         cache_key = f"{wallet_address}:{file_hash}"
 #         await self.redis_pool.setex(cache_key, 86400, score)
-#         self.logger.info(f"Stored score {score} in cache for key: {cache_key}")
 
 #     async def verify(self, campaign: Campaign, file_path: str, wallet_address: str) -> float:
-#         """
-#         Asynchronously verifies the provided file and applies a fairness adjustment.
-#         Uses Redis to cache the final (adjusted) score.
-#         """
 #         file_hash = self.hash_document(file_path)
-#         cached = await self.check_cache(wallet_address, file_hash)
-#         if cached is not None:
-#             return cached
+#         if cached := await self.check_cache(wallet_address, file_hash):
+#             return float(cached)
 
 #         mime_type, _ = mimetypes.guess_type(file_path)
-#         self.logger.info(f"Verifying file: {file_path} with MIME type: {mime_type}")
+#         processor = self.verify_image if mime_type.startswith("image") else self.verify_text_document
+#         raw_score = await asyncio.to_thread(processor, campaign, file_path)
 
-#         # Run verification in a thread to avoid blocking the event loop.
-#         if mime_type and mime_type.startswith("image"):
-#             self.logger.info("Processing image file for verification.")
-#             raw_score = await asyncio.to_thread(self.verify_image, campaign, file_path)
-#         elif mime_type and (mime_type.startswith("text") or file_path.endswith(('.pdf', '.csv', '.txt', '.doc', '.docx'))):
-#             self.logger.info("Processing text-based document for verification.")
-#             raw_score = await asyncio.to_thread(self.verify_text_document, campaign, file_path)
-#         else:
-#             self.logger.warning("Unsupported or undetected MIME type; defaulting to text verification.")
-#             raw_score = await asyncio.to_thread(self.verify_text_document, campaign, file_path)
-
-#         # Apply a fairness adjustment: increase by 30%, then divide by a random factor (e.g., between 0.95 and 1.05)
 #         fairness_factor = random.uniform(0.95, 1.05)
-#         adjusted_score = (raw_score * 1.30) / fairness_factor
-#         # Normalize so that the score never exceeds 100
-#         normalized_score = min(adjusted_score, 100)
-#         self.logger.info(f"Raw score: {raw_score}, Fairness factor: {fairness_factor}, Adjusted score: {adjusted_score}, Normalized score: {normalized_score}")
+#         adjusted_score = min((raw_score * 1.30) / fairness_factor, 100)
+#         await self.store_in_cache(wallet_address, file_hash, adjusted_score)
+#         return adjusted_score
 
-#         await self.store_in_cache(wallet_address, file_hash, normalized_score)
-#         return normalized_score
 
-#     def encode_image(self, image_path: str) -> str:
-#         """
-#         Encodes an image file to a Base64 string.
-#         """
-#         self.logger.info(f"Encoding image: {image_path}")
-#         with open(image_path, "rb") as image_file:
-#             return base64.b64encode(image_file.read()).decode("utf-8")
+#     def _create_text_workflow(self):
+#         class TextState(TypedDict):
+#             content: str
+#             campaign_desc: str
+#             campaign_reqs: str
+#             result_eval_a: SimilarityScore | None
+#             result_eval_b: SimilarityScore | None
+#             final: SimilarityScore | None
+
+
+#         def evaluator_a(state: TextState):
+#             try:
+#                 prompt = ChatPromptTemplate.from_template(
+#                     "As Expert Evaluator A, analyze this submission against:\n"
+#                     "Campaign: {desc}\nRequirements: {reqs}\n\n"
+#                     "Submission: {content}\n\nProvide score (20-100) and reason."
+#                 )
+#                 chain = prompt | self.researcher.with_structured_output(SimilarityScore)
+#                 result = chain.invoke({
+#                     "desc": state["campaign_desc"],
+#                     "reqs": state["campaign_reqs"],
+#                     "content": state["content"]
+#                 })
+#                 return {"result_eval_a": result}
+#             except Exception as e:
+#                 self.logger.error(f"Evaluator A failed: {str(e)}")
+#                 return {"result_eval_a": SimilarityScore(score=0.0, reason="Evaluation failed")}
+
+#         def evaluator_b(state: TextState):
+#             try:
+#                 prompt = ChatPromptTemplate.from_template(
+#                     "As Critical Evaluator B, assess this submission from different angles:\n"
+#                     "Campaign: {desc}\nRequirements: {reqs}\n\n"
+#                     "Submission: {content}\n\nGive score (20-100) and detailed analysis."
+#                 )
+#                 chain = prompt | self.qa_engineer.with_structured_output(SimilarityScore)
+#                 result = chain.invoke({
+#                     "desc": state["campaign_desc"],
+#                     "reqs": state["campaign_reqs"],
+#                     "content": state["content"]
+#                 })
+#                 return {"result_eval_b": result}
+#             except Exception as e:
+#                 self.logger.error(f"Evaluator B failed: {str(e)}")
+#                 return {"result_eval_b": SimilarityScore(score=0.0, reason="Evaluation failed")}
+
+#         def arbiter(state: TextState):
+#             try:
+#                 # Ensure we have valid scores
+#                 a_score = state["result_eval_a"].score if state["result_eval_a"] else 0.0
+#                 b_score = state["result_eval_b"].score if state["result_eval_b"] else 0.0
+                
+#                 prompt = ChatPromptTemplate.from_template(
+#                     "Reconcile text evaluations:\n"
+#                     "A: {a_score} - {a_reason}\n"
+#                     "B: {b_score} - {b_reason}\n\n"
+#                     "Provide final score (20-100) and comprehensive reason."
+#                 )
+#                 chain = prompt | self.writer.with_structured_output(SimilarityScore)
+#                 result = chain.invoke({
+#                     "a_score": a_score,
+#                     "a_reason": state["result_eval_a"].reason if state["result_eval_a"] else "N/A",
+#                     "b_score": b_score,
+#                     "b_reason": state["result_eval_b"].reason if state["result_eval_b"] else "N/A"
+#                 })
+#                 return {"final": result}
+#             except Exception as e:
+#                 self.logger.error(f"Arbiter failed: {str(e)}")
+#                 return {"final": SimilarityScore(score=0.0, reason="Arbitration failed")}
+
+#         workflow = StateGraph(TextState)
+#         workflow.add_node("node_eval_text_a", evaluator_a)
+#         workflow.add_node("node_eval_text_b", evaluator_b)
+#         workflow.add_node("node_arbiter", arbiter)
+        
+#         # Sequential execution with error fallthrough
+#         workflow.add_edge("node_eval_text_a", "node_eval_text_b")
+#         workflow.add_edge("node_eval_text_b", "node_arbiter")
+#         workflow.add_edge("node_arbiter", END)
+        
+#         # Error handling
+#         workflow.set_entry_point("node_eval_text_a")
+#         return workflow.compile()
+
+
+ 
+#     def verify_text_document(self, campaign: Campaign, file_path: str) -> float:
+#         content = self._extract_text_content(file_path)
+#         workflow = self._create_text_workflow()
+#         result = workflow.invoke({
+#             "content": content,
+#             "campaign_desc": campaign.description,
+#             "campaign_reqs": campaign.data_requirements,
+#             "eval_text_a": None,
+#             "eval_text_b": None,
+#             "final": None
+#         })
+#         return result["final"].score
+
+
+
+#     def _create_image_workflow(self):
+#         class ImageState(TypedDict):
+#             image_b64: str
+#             campaign_desc: str
+#             eval_image_a: SimilarityScore | None
+#             eval_image_b: SimilarityScore | None
+#             final: SimilarityScore | None
+
+#         def evaluator_a(state: ImageState):
+#             try:
+#                 messages = [
+#                     SystemMessage(content="You're a visual analysis expert. Evaluate image alignment with campaign."),
+#                     HumanMessage(content=[
+#                         {"type": "text", "text": f"Evaluate image for: {state['campaign_desc']}"},
+#                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{state['image_b64']}"}}
+#                     ])
+#                 ]
+#                 response = self.vision_model.invoke(messages)
+#                 self.logger.info(f"Image evaluation response evaluator_a: {response}")
+#                 score = self._parse_image_response(response.content)
+#                 self.logger.info(f"Image evaluation score evaluator_a: {score}")
+#                 return {"eval_image_a": score}
+#             except Exception as e:
+#                 self.logger.error(f"Evaluator A failed: {str(e)}")
+#                 return {"eval_image_a": SimilarityScore(score=0.0, reason="Evaluation failed in evaluator A")}
+
+#         def evaluator_b(state: ImageState):
+#             try:
+#                 messages = [
+#                     SystemMessage(content="You're a visual analysis expert. Evaluate image alignment with campaign."),
+#                     HumanMessage(content=[
+#                         {"type": "text", "text": f"Campaign: {state['campaign_desc']}"},
+#                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{state['image_b64']}"}}
+#                     ])
+#                 ]
+#                 response = self.qa_engineer.invoke(messages)
+#                 self.logger.info(f"Image evaluation response evaluator_b: {response}")
+#                 score = self._parse_image_response(response.content)
+#                 self.logger.info(f"Image evaluation score evaluator_b: {score}")
+#                 return {"eval_image_b": score}
+#             except Exception as e:
+#                 self.logger.error(f"Evaluator B failed: {str(e)}")
+#                 return {"eval_image_b": SimilarityScore(score=0.0, reason="Evaluation failed in evaluator B")}
+
+#         def arbiter(state: ImageState):
+#             try:
+#                 # Ensure both evaluator outputs are present
+#                 a = state.get("eval_image_a")
+#                 b = state.get("eval_image_b")
+#                 if not a or not b:
+#                     raise ValueError("Missing evaluator results; cannot perform arbitration")
+#                 prompt = ChatPromptTemplate.from_template(
+#                     "Reconcile image evaluations:\n"
+#                     "A: {a_score} - {a_reason}\n"
+#                     "B: {b_score} - {b_reason}\n\n"
+#                     "Provide final score (20-100) and comprehensive reason."
+#                 )
+#                 chain = prompt | self.writer.with_structured_output(SimilarityScore)
+#                 result = chain.invoke({
+#                     "a_score": a.score,
+#                     "a_reason": a.reason,
+#                     "b_score": b.score,
+#                     "b_reason": b.reason
+#                 })
+#                 self.logger.info(f"Image evaluation result arbiter: {result}")
+#                 return {"final": result}
+#             except Exception as e:
+#                 self.logger.error(f"Arbiter failed: {str(e)}")
+#                 return {"final": SimilarityScore(score=0.0, reason="Arbitration failed")}
+
+#         workflow = StateGraph(ImageState)
+#         # Rename nodes to avoid state key conflicts: use distinct identifiers.
+#         workflow.add_node("node_image_a", evaluator_a)
+#         workflow.add_node("node_image_b", evaluator_b)
+#         workflow.add_node("node_arbiter", arbiter)
+        
+#         # Define the sequential execution flow.
+#         workflow.add_edge("node_image_a", "node_image_b")
+#         workflow.add_edge("node_image_b", "node_arbiter")
+#         workflow.add_edge("node_arbiter", END)
+        
+#         # Set the entry point.
+#         workflow.set_entry_point("node_image_a")
+        
+#         return workflow.compile()
+
+
+#     def _create_csv_workflow(self):
+#         class CsvState(TypedDict):
+#             csv_content: str
+#             campaign_desc: str
+#             eval_csv_a: SimilarityScore | None
+#             eval_csv_b: SimilarityScore | None
+#             final: SimilarityScore | None
+
+#         def evaluator_a(state: CsvState):
+#             try:
+#                 prompt = ChatPromptTemplate.from_template(
+#                     "As CSV Analysis Expert Evaluator A, analyze this CSV data for campaign relevance.\n"
+#                     "Campaign: {desc}\n\n"
+#                     "CSV Content:\n{csv_content}\n\n"
+#                     "Provide a score (20-100) and brief reasoning."
+#                 )
+#                 chain = prompt | self.researcher.with_structured_output(SimilarityScore)
+#                 result = chain.invoke({
+#                     "desc": state["campaign_desc"],
+#                     "csv_content": state["csv_content"]
+#                 })
+#                 self.logger.info(f"CSV Evaluator A result: {result}")
+#                 return {"eval_csv_a": result}
+#             except Exception as e:
+#                 self.logger.error(f"CSV Evaluator A failed: {str(e)}")
+#                 return {"eval_csv_a": SimilarityScore(score=0.0, reason="Evaluation failed in evaluator A")}
+
+#         def evaluator_b(state: CsvState):
+#             try:
+#                 prompt = ChatPromptTemplate.from_template(
+#                     "As CSV Analysis Expert Evaluator B, assess the CSV data from another angle.\n"
+#                     "Campaign: {desc}\n\n"
+#                     "CSV Content:\n{csv_content}\n\n"
+#                     "Provide a score (20-100) and detailed reasoning."
+#                 )
+#                 chain = prompt | self.qa_engineer.with_structured_output(SimilarityScore)
+#                 result = chain.invoke({
+#                     "desc": state["campaign_desc"],
+#                     "csv_content": state["csv_content"]
+#                 })
+#                 self.logger.info(f"CSV Evaluator B result: {result}")
+#                 return {"eval_csv_b": result}
+#             except Exception as e:
+#                 self.logger.error(f"CSV Evaluator B failed: {str(e)}")
+#                 return {"eval_csv_b": SimilarityScore(score=0.0, reason="Evaluation failed in evaluator B")}
+
+#         def arbiter(state: CsvState):
+#             try:
+#                 a = state.get("eval_csv_a")
+#                 b = state.get("eval_csv_b")
+#                 if not a or not b:
+#                     raise ValueError("Missing CSV evaluator results; cannot perform arbitration")
+#                 prompt = ChatPromptTemplate.from_template(
+#                     "Reconcile CSV evaluations:\n"
+#                     "A: {a_score} - {a_reason}\n"
+#                     "B: {b_score} - {b_reason}\n\n"
+#                     "Provide a final score (20-100) and comprehensive analysis."
+#                 )
+#                 chain = prompt | self.writer.with_structured_output(SimilarityScore)
+#                 result = chain.invoke({
+#                     "a_score": a.score,
+#                     "a_reason": a.reason,
+#                     "b_score": b.score,
+#                     "b_reason": b.reason
+#                 })
+#                 self.logger.info(f"CSV Arbiter result: {result}")
+#                 return {"final": result}
+#             except Exception as e:
+#                 self.logger.error(f"CSV Arbiter failed: {str(e)}")
+#                 return {"final": SimilarityScore(score=0.0, reason="Arbitration failed")}
+
+#         workflow = StateGraph(CsvState)
+#         # Using distinct node names to avoid any state key conflicts
+#         workflow.add_node("node_csv_a", evaluator_a)
+#         workflow.add_node("node_csv_b", evaluator_b)
+#         workflow.add_node("node_csv_arbiter", arbiter)
+        
+#         # Define the sequential flow: evaluator A -> evaluator B -> arbiter -> END
+#         workflow.add_edge("node_csv_a", "node_csv_b")
+#         workflow.add_edge("node_csv_b", "node_csv_arbiter")
+#         workflow.add_edge("node_csv_arbiter", END)
+        
+#         # Set the entry point of the workflow
+#         workflow.set_entry_point("node_csv_a")
+        
+#         return workflow.compile()
+
 
 #     def verify_image(self, campaign: Campaign, file_path: str) -> float:
-#         """
-#         Synchronously verifies an image file using OpenAI's ChatCompletion API.
-#         """
-#         self.logger.info(f"Verifying image file: {file_path}")
-#         base64_image = self.encode_image(file_path)
-#         client = OpenAI()
-#         messages = [
-#             {
-#                 "role": "user",
-#                 "content": [
-#                     {
-#                         "type": "text",
-#                         "text": (
-#                             "You are an expert evaluator tasked with determining how well an image aligns with the campaign's objectives. "
-#                             "Evaluate the image using the following information:\n\n"
-#                             f"Campaign Description: {campaign.description}\n\n"
-#                             f"Campaign Requirements: {campaign.data_requirements}\n\n"
-#                             "Please provide a numeric similarity score between 20 and 100, where 100 indicates perfect alignment and 20 indicates no alignment. "
-#                             "Output only the numeric score."
-#                         )
-#                     },
-#                     {
-#                         "type": "image_url",
-#                         "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
-#                     },
-#                 ],
-#             }
-#         ]
-
-#         try:
-#             response = client.chat.completions.create(
-#                 model="gpt-4o-mini",
-#                 messages=messages,
-#             )
-#             response_content = response.choices[0].message.content
-#             self.logger.info(f"Response content: {response_content}")
-#             score = float(response_content.strip())
-#             self.logger.info(f"Image verification score: {score}")
-#             return score
-#         except Exception as e:
-#             self.logger.error(f"Error during image verification: {e}")
-#             return 0.0
-
-#     def verify_text_document(self, campaign: Campaign, file_path: str) -> float:
-#         """
-#         Synchronously extracts text from a document (PDF, CSV, TXT, DOC, DOCX) and evaluates it using an LLM.
-#         """
-#         self.logger.info(f"Verifying text document: {file_path}")
-#         content = ""
-
-#         if file_path.endswith('.pdf'):
-#             with open(file_path, "rb") as pdf_file:
-#                 reader = PyPDF2.PdfReader(pdf_file)
-#                 for page in reader.pages:
-#                     text = page.extract_text()
-#                     if text:
-#                         content += text + "\n"
-#         elif file_path.endswith('.csv'):
-#             df = pd.read_csv(file_path)
-#             content = df.to_string(index=False)
-#         elif file_path.endswith('.txt'):
-#             with open(file_path, "r", encoding="utf-8") as f:
-#                 content = f.read()
-#         elif file_path.endswith('.docx'):
-#             doc = Document(file_path)
-#             content = "\n".join([para.text for para in doc.paragraphs])
-#         elif file_path.endswith('.doc'):
-#             content = self.extract_text_from_doc(file_path)
-#         else:
-#             raise ValueError("Unsupported document format")
-
-#         prompt = ChatPromptTemplate.from_messages(
-#             [
-#                 (
-#                     "system",
-#                     (
-#                         "IDENTITY:\n"
-#                         "You are an expert evaluator tasked with determining how well a document aligns with the campaign description and requirements. "
-#                         "Evaluate the document on the following criteria: Accuracy, Alignment, Relevance, Word Count Compliance, Grammatical Accuracy, Semantic Relevance, and Sentiment Diversity. "
-#                         "For each criterion, assign a numeric score between 20 and 100, where 100 means perfect alignment and 20 means no alignment at all. "
-#                         "Output your results in JSON format with keys 'accuracy', 'alignment', 'relevance', 'word_count_compliance', 'grammatical_accuracy', 'semantic_relevance', and 'sentiment_diversity'. "
-#                         "Be as objective and consistent as possible."
-#                     )
-#                 ),
-#                 (
-#                     "human",
-#                     (
-#                         "Campaign Description:\n{campaign_description}\n\n"
-#                         "Campaign Requirements:\n{campaign_requirements}\n\n"
-#                         "Document Content:\n{document_content}\n\n"
-#                         "Please provide the scores for each criterion."
-#                     )
-#                 ),
-#             ]
-#         )
-
-#         llm = get_long_context_llm()
-#         chain = prompt | llm.with_structured_output(EvaluationScore)
-#         self.logger.info("Invoking LLM for text document verification.")
-#         result = chain.invoke({
-#             "campaign_description": campaign.description,
-#             "campaign_requirements": campaign.data_requirements,
-#             "document_content": content,
+#         base64_image = self._encode_image(file_path)
+#         workflow = self._create_image_workflow()
+#         result = workflow.invoke({
+#             "image_b64": base64_image,
+#             "campaign_desc": campaign.description,
+#             "eval_image_a": None,
+#             "eval_image_b": None,
+#             "final": None
 #         })
-#         final_score = result.final_score
-#         self.logger.info(f"Text verification scores: {result.dict()} | Final average score: {final_score}")
-#         return final_score
+#         print(f"Image verification result: {result}")
+#         return result["final"].score
 
-#     def extract_text_from_doc(self, file_path: str) -> str:
-#         """
-#         Extracts text from a .doc file using antiword (or similar method).
-#         """
-#         self.logger.info(f"Extracting text from .doc file: {file_path}")
+#     def _extract_text_content(self, file_path: str) -> str:
+#         if file_path.endswith('.pdf'):
+#             with open(file_path, "rb") as f:
+#                 return "\n".join(page.extract_text() for page in PyPDF2.PdfReader(f).pages)
+#         elif file_path.endswith('.csv'):
+#             return pd.read_csv(file_path).to_string()
+#         elif file_path.endswith('.txt'):
+#             with open(file_path, "r") as f:
+#                 return f.read()
+#         elif file_path.endswith('.docx'):
+#             return "\n".join(p.text for p in Document(file_path).paragraphs)
+#         elif file_path.endswith('.doc'):
+#             return self._extract_doc_content(file_path)
+#         return ""
+
+#     def _encode_image(self, path: str) -> str:
+#         with open(path, "rb") as f:
+#             return base64.b64encode(f.read()).decode()
+
+#     def _extract_doc_content(self, path: str) -> str:
 #         try:
-#             result = subprocess.run(
-#                 ['antiword', file_path],
-#                 stdout=subprocess.PIPE,
-#                 stderr=subprocess.PIPE,
-#                 text=True
-#             )
-#             if result.returncode == 0:
-#                 return result.stdout
-#             else:
-#                 raise Exception(f"Error reading .doc file: {result.stderr}")
-#         except Exception as e:
-#             self.logger.error(f"Failed to extract text from .doc file: {str(e)}")
-#             raise ValueError(f"Failed to extract text from .doc file: {str(e)}")
+#             result = subprocess.run(['antiword', path], capture_output=True, text=True)
+#             return result.stdout if result.returncode == 0 else ""
+#         except:
+#             return ""
+
+#     def _parse_image_response(self, response: str) -> SimilarityScore:
+#         try:
+#             score = float(response.strip())
+#             return SimilarityScore(score=score, reason="Image analysis")
+#         except:
+#             return SimilarityScore(score=0.0, reason="Invalid response")
+
 
 
 import base64
@@ -279,7 +412,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.campaigns.models import Campaign
-from app.ai_verification.lilypad import get_fast_llm, get_long_context_llm, get_code_llm
+from app.ai_verification.lilypad import get_fast_llm, get_long_context_llm, get_code_llm, get_vision_llm
 from app.core.constants import LILYPAD_API_KEY
 from openai import OpenAI
 from redis.asyncio import Redis
@@ -296,217 +429,468 @@ class AIVerificationSystem:
         self.researcher = get_long_context_llm()
         self.writer = get_fast_llm()
         self.qa_engineer = get_code_llm()
+        self.vision_model = get_vision_llm()
+        
+        # Setup comprehensive logging.
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        handler.setFormatter(formatter)
+        if not self.logger.handlers:
+            self.logger.addHandler(handler)
+        self.logger.info("AIVerificationSystem initialized.")
 
     def hash_document(self, file_path: str) -> str:
+        self.logger.info(f"Hashing document at {file_path}.")
         import hashlib
         hash_sha256 = hashlib.sha256()
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_sha256.update(chunk)
-        return hash_sha256.hexdigest()
+        try:
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    hash_sha256.update(chunk)
+            file_hash = hash_sha256.hexdigest()
+            self.logger.info(f"Computed hash: {file_hash}.")
+            return file_hash
+        except Exception as e:
+            self.logger.error(f"Error hashing document: {str(e)}")
+            raise
 
     async def check_cache(self, wallet_address: str, file_hash: str) -> float:
         cache_key = f"{wallet_address}:{file_hash}"
-        return await self.redis_pool.get(cache_key)
+        self.logger.info(f"Checking cache for key: {cache_key}.")
+        cached_score = await self.redis_pool.get(cache_key)
+        if cached_score is not None:
+            self.logger.info(f"Cache hit for key: {cache_key}.")
+            return float(cached_score)
+        self.logger.info(f"Cache miss for key: {cache_key}.")
+        return None
 
     async def store_in_cache(self, wallet_address: str, file_hash: str, score: float):
         cache_key = f"{wallet_address}:{file_hash}"
+        self.logger.info(f"Storing score {score} in cache for key: {cache_key}.")
         await self.redis_pool.setex(cache_key, 86400, score)
 
     async def verify(self, campaign: Campaign, file_path: str, wallet_address: str) -> float:
+        self.logger.info(f"Starting verification for file: {file_path} with campaign: {campaign.description}.")
         file_hash = self.hash_document(file_path)
         if cached := await self.check_cache(wallet_address, file_hash):
+            self.logger.info(f"Using cached score for file: {file_path}.")
             return float(cached)
 
         mime_type, _ = mimetypes.guess_type(file_path)
-        processor = self.verify_image if mime_type.startswith("image") else self.verify_text_document
-        raw_score = await asyncio.to_thread(processor, campaign, file_path)
+        self.logger.info(f"Guessed MIME type {mime_type} for file: {file_path}.")
+        if mime_type and mime_type.startswith("image"):
+            self.logger.info("File identified as an image.")
+            raw_score = await asyncio.to_thread(self.verify_image, campaign, file_path)
+        elif mime_type and (mime_type.startswith("text") or file_path.endswith(('.pdf', '.csv', '.txt', '.doc', '.docx'))):
+            self.logger.info("File identified as a text/document type.")
+            raw_score = await asyncio.to_thread(self.verify_text_document, campaign, file_path)
+        else:
+            self.logger.warning("Unsupported or undetected MIME type; defaulting to text verification.")
+            raw_score = await asyncio.to_thread(self.verify_text_document, campaign, file_path)
 
         fairness_factor = random.uniform(0.95, 1.05)
-        adjusted_score = min((raw_score * 1.30) / fairness_factor, 100)
-        await self.store_in_cache(wallet_address, file_hash, adjusted_score)
-        return adjusted_score
+        adjusted_score = (raw_score * 1.30) / fairness_factor
+        normalized_score = min(adjusted_score, 100)
+        self.logger.info(f"Verification scores - raw: {raw_score}, fairness_factor: {fairness_factor}, adjusted: {adjusted_score}, normalized: {normalized_score}.")
+        await self.store_in_cache(wallet_address, file_hash, normalized_score)
+        return normalized_score
 
     def _create_text_workflow(self):
+        self.logger.info("Creating text workflow.")
         class TextState(TypedDict):
             content: str
             campaign_desc: str
             campaign_reqs: str
-            eval_a: SimilarityScore | None
-            eval_b: SimilarityScore | None
+            result_eval_a: SimilarityScore | None
+            result_eval_b: SimilarityScore | None
             final: SimilarityScore | None
 
         def evaluator_a(state: TextState):
-            prompt = ChatPromptTemplate.from_template(
-                "As Expert Evaluator A, analyze this submission against:\n"
-                "Campaign: {desc}\nRequirements: {reqs}\n\n"
-                "Submission: {content}\n\nProvide score (20-100) and reason."
-            )
-            chain = prompt | self.researcher.with_structured_output(SimilarityScore)
-            result = chain.invoke({
-                "desc": state["campaign_desc"],
-                "reqs": state["campaign_reqs"],
-                "content": state["content"]
-            })
-            return {"eval_a": result}
+            self.logger.info("Starting evaluator A for text workflow.")
+            try:
+                prompt = ChatPromptTemplate.from_template(
+                    "As Expert Evaluator A, analyze this submission against:\n"
+                    "Campaign: {desc}\nRequirements: {reqs}\n\n"
+                    "Submission: {content}\n\nProvide score (20-100) and reason."
+                )
+                chain = prompt | self.researcher.with_structured_output(SimilarityScore)
+                result = chain.invoke({
+                    "desc": state["campaign_desc"],
+                    "reqs": state["campaign_reqs"],
+                    "content": state["content"]
+                })
+                self.logger.info(f"Evaluator A result: {result}")
+                return {"result_eval_a": result}
+            except Exception as e:
+                self.logger.error(f"Evaluator A failed: {str(e)}")
+                return {"result_eval_a": SimilarityScore(score=0.0, reason="Evaluation failed")}
 
         def evaluator_b(state: TextState):
-            prompt = ChatPromptTemplate.from_template(
-                "As Critical Evaluator B, assess this submission from different angles:\n"
-                "Campaign: {desc}\nRequirements: {reqs}\n\n"
-                "Submission: {content}\n\nGive score (20-100) and detailed analysis."
-            )
-            chain = prompt | self.qa_engineer.with_structured_output(SimilarityScore)
-            result = chain.invoke({
-                "desc": state["campaign_desc"],
-                "reqs": state["campaign_reqs"],
-                "content": state["content"]
-            })
-            return {"eval_b": result}
+            self.logger.info("Starting evaluator B for text workflow.")
+            try:
+                prompt = ChatPromptTemplate.from_template(
+                    "As Critical Evaluator B, assess this submission from different angles:\n"
+                    "Campaign: {desc}\nRequirements: {reqs}\n\n"
+                    "Submission: {content}\n\nGive score (20-100) and detailed analysis."
+                )
+                chain = prompt | self.qa_engineer.with_structured_output(SimilarityScore)
+                result = chain.invoke({
+                    "desc": state["campaign_desc"],
+                    "reqs": state["campaign_reqs"],
+                    "content": state["content"]
+                })
+                self.logger.info(f"Evaluator B result: {result}")
+                return {"result_eval_b": result}
+            except Exception as e:
+                self.logger.error(f"Evaluator B failed: {str(e)}")
+                return {"result_eval_b": SimilarityScore(score=0.0, reason="Evaluation failed")}
 
         def arbiter(state: TextState):
-            prompt = ChatPromptTemplate.from_template(
-                "As Senior Arbiter, reconcile these evaluations:\n"
-                "Evaluator A: {a_score} - {a_reason}\n"
-                "Evaluator B: {b_score} - {b_reason}\n\n"
-                "Provide final score (20-100) and comprehensive reason."
-            )
-            chain = prompt | self.writer.with_structured_output(SimilarityScore)
-            result = chain.invoke({
-                "a_score": state["eval_a"].score,
-                "a_reason": state["eval_a"].reason,
-                "b_score": state["eval_b"].score,
-                "b_reason": state["eval_b"].reason
-            })
-            return {"final": result}
+            self.logger.info("Starting arbiter for text workflow.")
+            try:
+                a_score = state["result_eval_a"].score if state["result_eval_a"] else 0.0
+                b_score = state["result_eval_b"].score if state["result_eval_b"] else 0.0
+                prompt = ChatPromptTemplate.from_template(
+                    "Reconcile text evaluations:\n"
+                    "A: {a_score} - {a_reason}\n"
+                    "B: {b_score} - {b_reason}\n\n"
+                    "Provide final score (20-100) and comprehensive reason."
+                )
+                chain = prompt | self.writer.with_structured_output(SimilarityScore)
+                result = chain.invoke({
+                    "a_score": a_score,
+                    "a_reason": state["result_eval_a"].reason if state["result_eval_a"] else "N/A",
+                    "b_score": b_score,
+                    "b_reason": state["result_eval_b"].reason if state["result_eval_b"] else "N/A"
+                })
+                self.logger.info(f"Arbiter result: {result}")
+                return {"final": result}
+            except Exception as e:
+                self.logger.error(f"Arbiter failed: {str(e)}")
+                return {"final": SimilarityScore(score=0.0, reason="Arbitration failed")}
 
         workflow = StateGraph(TextState)
-        workflow.add_node("eval_a", evaluator_a)
-        workflow.add_node("eval_b", evaluator_b)
-        workflow.add_node("arbiter", arbiter)
+        workflow.add_node("node_eval_text_a", evaluator_a)
+        workflow.add_node("node_eval_text_b", evaluator_b)
+        workflow.add_node("node_arbiter", arbiter)
         
-        # Set up parallel evaluation flow
-        workflow.add_edge("eval_a", "arbiter")
-        workflow.add_edge("eval_b", "arbiter")
-        workflow.add_edge("arbiter", END)
+        workflow.add_edge("node_eval_text_a", "node_eval_text_b")
+        workflow.add_edge("node_eval_text_b", "node_arbiter")
+        workflow.add_edge("node_arbiter", END)
         
-        # Create entry point that triggers both evaluators
-        workflow.set_entry_point("eval_a")
-        workflow.add_edge("eval_a", "eval_b")
+        workflow.set_entry_point("node_eval_text_a")
+        self.logger.info("Text workflow created successfully.")
         return workflow.compile()
 
     def verify_text_document(self, campaign: Campaign, file_path: str) -> float:
+        self.logger.info(f"Verifying text document {file_path}.")
         content = self._extract_text_content(file_path)
+        if not content:
+            self.logger.error("Failed to extract text content.")
+            return 0.0
         workflow = self._create_text_workflow()
         result = workflow.invoke({
             "content": content,
             "campaign_desc": campaign.description,
             "campaign_reqs": campaign.data_requirements,
-            "eval_a": None,
-            "eval_b": None,
+            "result_eval_a": None,
+            "result_eval_b": None,
             "final": None
         })
+        self.logger.info(f"Text document verification result: {result}")
         return result["final"].score
 
     def _create_image_workflow(self):
+        self.logger.info("Creating image workflow.")
         class ImageState(TypedDict):
             image_b64: str
             campaign_desc: str
-            eval_a: SimilarityScore | None
-            eval_b: SimilarityScore | None
+            eval_image_a: SimilarityScore | None
+            eval_image_b: SimilarityScore | None
             final: SimilarityScore | None
 
         def evaluator_a(state: ImageState):
-            client = OpenAI(api_key=self.openai_api_key)
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{
-                    "role": "user",
-                    "content": [
+            self.logger.info("Starting evaluator A for image workflow.")
+            try:
+                messages = [
+                    SystemMessage(content="You're a visual analysis expert. Evaluate image alignment with campaign."),
+                    HumanMessage(content=[
                         {"type": "text", "text": f"Evaluate image for: {state['campaign_desc']}"},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{state['image_b64']}"}}
-                    ]
-                }],
-                max_tokens=300
-            )
-            return self._parse_image_response(response.choices[0].message.content)
+                    ])
+                ]
+                response = self.vision_model.invoke(messages)
+                self.logger.info(f"Image evaluator A response: {response}")
+                score = self._parse_image_response(response.content)
+                self.logger.info(f"Evaluator A image score: {score}")
+                return {"eval_image_a": score}
+            except Exception as e:
+                self.logger.error(f"Image evaluator A failed: {str(e)}")
+                return {"eval_image_a": SimilarityScore(score=0.0, reason="Evaluation failed in evaluator A")}
 
         def evaluator_b(state: ImageState):
-            messages = [
-                SystemMessage(content="You're a visual analysis expert. Evaluate image alignment with campaign."),
-                HumanMessage(content=[
-                    {"type": "text", "text": f"Campaign: {state['campaign_desc']}"},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{state['image_b64']}"}}
-                ])
-            ]
-            response = self.qa_engineer.invoke(messages)
-            return SimilarityScore(score=float(response.content), reason="Visual analysis")
+            self.logger.info("Starting evaluator B for image workflow.")
+            try:
+                messages = [
+                    SystemMessage(content="You're a visual analysis expert. Evaluate image alignment with campaign."),
+                    HumanMessage(content=[
+                        {"type": "text", "text": f"Campaign: {state['campaign_desc']}"},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{state['image_b64']}"}}
+                    ])
+                ]
+                response = self.qa_engineer.invoke(messages)
+                self.logger.info(f"Image evaluator B response: {response}")
+                score = self._parse_image_response(response.content)
+                self.logger.info(f"Evaluator B image score: {score}")
+                return {"eval_image_b": score}
+            except Exception as e:
+                self.logger.error(f"Image evaluator B failed: {str(e)}")
+                return {"eval_image_b": SimilarityScore(score=0.0, reason="Evaluation failed in evaluator B")}
 
         def arbiter(state: ImageState):
-            prompt = ChatPromptTemplate.from_template(
-                "Reconcile image evaluations:\nA: {a_score} - {a_reason}\nB: {b_score} - {b_reason}"
-            )
-            chain = prompt | self.writer.with_structured_output(SimilarityScore)
-            return chain.invoke({
-                "a_score": state["eval_a"].score,
-                "a_reason": state["eval_a"].reason,
-                "b_score": state["eval_b"].score,
-                "b_reason": state["eval_b"].reason
-            })
+            self.logger.info("Starting arbiter for image workflow.")
+            try:
+                a = state.get("eval_image_a")
+                b = state.get("eval_image_b")
+                if not a or not b:
+                    raise ValueError("Missing evaluator results; cannot perform arbitration")
+                prompt = ChatPromptTemplate.from_template(
+                    "Reconcile image evaluations:\n"
+                    "A: {a_score} - {a_reason}\n"
+                    "B: {b_score} - {b_reason}\n\n"
+                    "Provide final score (20-100) and comprehensive reason."
+                )
+                chain = prompt | self.writer.with_structured_output(SimilarityScore)
+                result = chain.invoke({
+                    "a_score": a.score,
+                    "a_reason": a.reason,
+                    "b_score": b.score,
+                    "b_reason": b.reason
+                })
+                self.logger.info(f"Image arbiter result: {result}")
+                return {"final": result}
+            except Exception as e:
+                self.logger.error(f"Image arbiter failed: {str(e)}")
+                return {"final": SimilarityScore(score=0.0, reason="Arbitration failed")}
 
         workflow = StateGraph(ImageState)
-        workflow.add_node("eval_a", evaluator_a)
-        workflow.add_node("eval_b", evaluator_b)
-        workflow.add_node("arbiter", arbiter)
-        workflow.add_edge("eval_a", "arbiter")
-        workflow.add_edge("eval_b", "arbiter")
-        workflow.add_edge("arbiter", END)
-        workflow.set_entry_point("eval_a")
+        workflow.add_node("node_image_a", evaluator_a)
+        workflow.add_node("node_image_b", evaluator_b)
+        workflow.add_node("node_arbiter", arbiter)
+        
+        workflow.add_edge("node_image_a", "node_image_b")
+        workflow.add_edge("node_image_b", "node_arbiter")
+        workflow.add_edge("node_arbiter", END)
+        
+        workflow.set_entry_point("node_image_a")
+        self.logger.info("Image workflow created successfully.")
         return workflow.compile()
 
     def verify_image(self, campaign: Campaign, file_path: str) -> float:
+        self.logger.info(f"Verifying image document {file_path}.")
         base64_image = self._encode_image(file_path)
         workflow = self._create_image_workflow()
         result = workflow.invoke({
             "image_b64": base64_image,
             "campaign_desc": campaign.description,
-            "eval_a": None,
-            "eval_b": None,
+            "eval_image_a": None,
+            "eval_image_b": None,
             "final": None
         })
+        self.logger.info(f"Image verification result: {result}")
+        return result["final"].score
+
+    def _create_csv_workflow(self):
+        self.logger.info("Creating CSV workflow.")
+        class CsvState(TypedDict):
+            csv_content: str
+            campaign_desc: str
+            eval_csv_a: SimilarityScore | None
+            eval_csv_b: SimilarityScore | None
+            final: SimilarityScore | None
+
+        def evaluator_a(state: CsvState):
+            self.logger.info("Starting evaluator A for CSV workflow.")
+            try:
+                prompt = ChatPromptTemplate.from_template(
+                    "As CSV Analysis Expert Evaluator A, analyze this CSV data for campaign relevance.\n"
+                    "Campaign: {desc}\n\n"
+                    "CSV Content:\n{csv_content}\n\n"
+                    "Provide a score (20-100) and brief reasoning."
+                )
+                chain = prompt | self.researcher.with_structured_output(SimilarityScore)
+                result = chain.invoke({
+                    "desc": state["campaign_desc"],
+                    "csv_content": state["csv_content"]
+                })
+                self.logger.info(f"CSV evaluator A result: {result}")
+                return {"eval_csv_a": result}
+            except Exception as e:
+                self.logger.error(f"CSV evaluator A failed: {str(e)}")
+                return {"eval_csv_a": SimilarityScore(score=0.0, reason="Evaluation failed in evaluator A")}
+
+        def evaluator_b(state: CsvState):
+            self.logger.info("Starting evaluator B for CSV workflow.")
+            try:
+                prompt = ChatPromptTemplate.from_template(
+                    "As CSV Analysis Expert Evaluator B, assess the CSV data from another angle.\n"
+                    "Campaign: {desc}\n\n"
+                    "CSV Content:\n{csv_content}\n\n"
+                    "Provide a score (20-100) and detailed reasoning."
+                )
+                chain = prompt | self.qa_engineer.with_structured_output(SimilarityScore)
+                result = chain.invoke({
+                    "desc": state["campaign_desc"],
+                    "csv_content": state["csv_content"]
+                })
+                self.logger.info(f"CSV evaluator B result: {result}")
+                return {"eval_csv_b": result}
+            except Exception as e:
+                self.logger.error(f"CSV evaluator B failed: {str(e)}")
+                return {"eval_csv_b": SimilarityScore(score=0.0, reason="Evaluation failed in evaluator B")}
+
+        def arbiter(state: CsvState):
+            self.logger.info("Starting arbiter for CSV workflow.")
+            try:
+                a = state.get("eval_csv_a")
+                b = state.get("eval_csv_b")
+                if not a or not b:
+                    raise ValueError("Missing CSV evaluator results; cannot perform arbitration")
+                prompt = ChatPromptTemplate.from_template(
+                    "Reconcile CSV evaluations:\n"
+                    "A: {a_score} - {a_reason}\n"
+                    "B: {b_score} - {b_reason}\n\n"
+                    "Provide a final score (20-100) and comprehensive analysis."
+                )
+                chain = prompt | self.writer.with_structured_output(SimilarityScore)
+                result = chain.invoke({
+                    "a_score": a.score,
+                    "a_reason": a.reason,
+                    "b_score": b.score,
+                    "b_reason": b.reason
+                })
+                self.logger.info(f"CSV arbiter result: {result}")
+                return {"final": result}
+            except Exception as e:
+                self.logger.error(f"CSV arbiter failed: {str(e)}")
+                return {"final": SimilarityScore(score=0.0, reason="Arbitration failed")}
+
+        workflow = StateGraph(CsvState)
+        workflow.add_node("node_csv_a", evaluator_a)
+        workflow.add_node("node_csv_b", evaluator_b)
+        workflow.add_node("node_csv_arbiter", arbiter)
+        
+        workflow.add_edge("node_csv_a", "node_csv_b")
+        workflow.add_edge("node_csv_b", "node_csv_arbiter")
+        workflow.add_edge("node_csv_arbiter", END)
+        
+        workflow.set_entry_point("node_csv_a")
+        self.logger.info("CSV workflow created successfully.")
+        return workflow.compile()
+
+    def verify_csv_document(self, campaign: Campaign, file_path: str) -> float:
+        self.logger.info(f"Verifying CSV document {file_path}.")
+        csv_content = self._extract_csv_content(file_path)
+        if not csv_content:
+            self.logger.error("CSV content extraction failed.")
+            return 0.0
+        workflow = self._create_csv_workflow()
+        result = workflow.invoke({
+            "csv_content": csv_content,
+            "campaign_desc": campaign.description,
+            "eval_csv_a": None,
+            "eval_csv_b": None,
+            "final": None
+        })
+        self.logger.info(f"CSV document verification result: {result}")
         return result["final"].score
 
     def _extract_text_content(self, file_path: str) -> str:
-        if file_path.endswith('.pdf'):
-            with open(file_path, "rb") as f:
-                return "\n".join(page.extract_text() for page in PyPDF2.PdfReader(f).pages)
-        elif file_path.endswith('.csv'):
-            return pd.read_csv(file_path).to_string()
-        elif file_path.endswith('.txt'):
-            with open(file_path, "r") as f:
-                return f.read()
-        elif file_path.endswith('.docx'):
-            return "\n".join(p.text for p in Document(file_path).paragraphs)
-        elif file_path.endswith('.doc'):
-            return self._extract_doc_content(file_path)
-        return ""
+        self.logger.info(f"Extracting text content from {file_path}.")
+        try:
+            if file_path.endswith('.pdf'):
+                with open(file_path, "rb") as f:
+                    pdf_reader = PyPDF2.PdfReader(f)
+                    text = "\n".join(page.extract_text() for page in pdf_reader.pages if page.extract_text())
+                    self.logger.info(f"Extracted text from PDF with {len(text)} characters.")
+                    return text
+            elif file_path.endswith('.csv'):
+                return self._extract_csv_content(file_path)
+            elif file_path.endswith('.txt'):
+                with open(file_path, "r", encoding="utf-8") as f:
+                    text = f.read()
+                    self.logger.info(f"Extracted text from TXT with {len(text)} characters.")
+                    return text
+            elif file_path.endswith('.docx'):
+                doc = Document(file_path)
+                text = "\n".join(p.text for p in doc.paragraphs)
+                self.logger.info(f"Extracted text from DOCX with {len(text)} characters.")
+                return text
+            elif file_path.endswith('.doc'):
+                text = self._extract_doc_content(file_path)
+                self.logger.info(f"Extracted text from DOC with {len(text)} characters.")
+                return text
+            else:
+                self.logger.warning(f"File format for {file_path} is not explicitly supported. Returning empty string.")
+                return ""
+        except Exception as e:
+            self.logger.error(f"Error extracting text content: {str(e)}")
+            return ""
+
+    def _extract_csv_content(self, file_path: str) -> str:
+        self.logger.info(f"Extracting CSV content from {file_path}.")
+        try:
+            df = pd.read_csv(file_path)
+            self.logger.info(f"Original CSV shape: {df.shape}.")
+            # Additional CSV processing:
+            # Remove rows with all missing values
+            df.dropna(how='all', inplace=True)
+            # Trim extra whitespace from string columns
+            df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+            self.logger.info(f"Processed CSV shape after cleaning: {df.shape}.")
+            # You can also insert further processing here (e.g., check for required columns)
+            csv_str = df.to_string(index=False)
+            self.logger.info("CSV content extraction successful.")
+            return csv_str
+        except Exception as e:
+            self.logger.error(f"Error extracting CSV content: {str(e)}")
+            return ""
 
     def _encode_image(self, path: str) -> str:
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
+        self.logger.info(f"Encoding image at {path}.")
+        try:
+            with open(path, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode()
+            self.logger.info("Image encoding successful.")
+            return encoded
+        except Exception as e:
+            self.logger.error(f"Error encoding image: {str(e)}")
+            return ""
 
     def _extract_doc_content(self, path: str) -> str:
+        self.logger.info(f"Extracting text from DOC file {path}.")
         try:
             result = subprocess.run(['antiword', path], capture_output=True, text=True)
-            return result.stdout if result.returncode == 0 else ""
-        except:
+            if result.returncode == 0:
+                self.logger.info("DOC file extraction successful.")
+                return result.stdout
+            else:
+                self.logger.error(f"Error reading DOC file: {result.stderr}")
+                return ""
+        except Exception as e:
+            self.logger.error(f"Failed to extract text from DOC file: {str(e)}")
             return ""
 
     def _parse_image_response(self, response: str) -> SimilarityScore:
+        self.logger.info("Parsing image response.")
         try:
             score = float(response.strip())
+            self.logger.info(f"Parsed image score: {score}.")
             return SimilarityScore(score=score, reason="Image analysis")
-        except:
+        except Exception as e:
+            self.logger.error(f"Error parsing image response: {str(e)}")
             return SimilarityScore(score=0.0, reason="Invalid response")

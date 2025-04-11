@@ -28,11 +28,11 @@ class Campaign(Base):
     is_premium = Column(Boolean, default=False, index=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-
     current_activity_level = Column(Float, default=0.0)
 
     contributions = relationship("Contribution", back_populates="campaign")
     activities = relationship("Activity", back_populates="campaign")
+    training_statuses = relationship("TrainingStatus", back_populates="campaign")  # New relationship
 
 
 class Contribution(Base):
@@ -66,3 +66,15 @@ class Activity(Base):
     
     campaign = relationship("Campaign", back_populates="activities")
     contribution = relationship("Contribution", back_populates="activities")
+
+
+class TrainingStatus(Base):
+    __tablename__ = 'training_status'
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    campaign_id = Column(String, ForeignKey("campaigns.id"), nullable=False)
+    status = Column(String, default="pending")  # e.g.: pending, running, completed, failed
+    result_url = Column(String, nullable=True)  # Where the trained model is stored
+    started_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+    campaign = relationship("Campaign", back_populates="training_statuses")

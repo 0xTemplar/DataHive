@@ -155,7 +155,58 @@ async def verify_image_contribution(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to verify image contribution: {str(e)}")
 
+@router.post("/contributions/verify-csv", summary="Upload a CSV file to verify a contribution")
+async def verify_csv_contribution(
+    onchain_campaign_id: str = Form(...),
+    wallet_address: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    redis_pool: Redis = Depends(get_redis_pool)
+):
+    """
+    Endpoint to upload a CSV file along with an onchain_campaign_id and wallet_address.
+    Uses the caching-enabled CSV verification method that includes additional CSV processing.
+    """
+    logger.info(f"Received onchain_campaign_id: {onchain_campaign_id}")
+    logger.info(f"Received wallet_address: {wallet_address}")
 
+    try:
+        campaign = db.query(Campaign).filter(
+            Campaign.onchain_campaign_id == onchain_campaign_id
+        ).first()
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+
+        storage = AkaveLinkAPI()
+        
+        temp_file_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
+        with open(temp_file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        logger.info(f"Temporary file created at {temp_file_path}.")
+
+        verifier = AIVerificationSystem(redis_pool=redis_pool)
+        try:
+            bucket_name = str(campaign.bucket_name)
+            # Run the CSV verification in a thread (since verify_csv_document is sync)
+            # This method includes additional CSV processing as defined in _extract_csv_content.
+            verification_score = await asyncio.to_thread(
+                verifier.verify_csv_document, campaign, temp_file_path
+            )
+            logger.info(f"CSV verification score obtained: {verification_score}.")
+            store = storage.upload_file(bucket_name, temp_file_path)
+            logger.info(f"File uploaded to storage bucket: {bucket_name}.")
+        except Exception as e:
+            logger.error(f"CSV file verification failed: {str(e)}")
+            os.remove(temp_file_path)
+            raise HTTPException(status_code=500, detail=f"CSV file verification failed: {str(e)}")
+        
+        os.remove(temp_file_path)
+        logger.info(f"Temporary file {temp_file_path} removed after processing.")
+        return {"verification_score": verification_score, "store": store}
+
+    except Exception as e:
+        logger.error(f"Failed to verify CSV contribution: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to verify CSV contribution: {str(e)}")
 
 """
 - We need to return RootCID iof the uploaded file 
