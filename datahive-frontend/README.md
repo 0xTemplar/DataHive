@@ -76,7 +76,7 @@ The application provides the following API routes:
 ### Campaign APIs
 
 - **GET /api/campaign/getCampaignContributions**: Fetches contributions for a specific campaign
-- **GET /api/campaign/getUserReputation**: Retrieves a user's reputation score
+- **GET /api/campaign/get_user_reputation**: Retrieves a user's reputation score and badges from the blockchain
 - **GET /api/campaign/getRemainingBudget**: Gets the remaining budget for a campaign
 
 ### Submission APIs

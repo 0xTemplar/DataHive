@@ -52,7 +52,7 @@ const TopContributors = () => {
         .map(async (creator) => {
           try {
             const response = await fetch(
-              `/api/campaign/getUserReputation?address=${creator.creator}`
+              `/api/campaign/get_user_reputation?address=${creator.creator}`
             );
             if (!response.ok) {
               throw new Error('Failed to fetch reputation');
@@ -62,7 +62,9 @@ const TopContributors = () => {
 
             return {
               ...creator,
-              actualReputationScore: data.reputation?.reputation_score || 1,
+              actualReputationScore: data.reputation?.reputation_score
+                ? parseInt(data.reputation.reputation_score)
+                : 1,
             };
           } catch (error) {
             console.error(

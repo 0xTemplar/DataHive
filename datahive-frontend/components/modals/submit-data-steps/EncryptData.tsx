@@ -78,12 +78,12 @@ const EncryptData: React.FC<EncryptDataProps> = ({
       let reputationScore = 1;
       try {
         const reputationResponse = await axios.get(
-          `/api/campaign/getUserReputation?address=${address}`
+          `/api/campaign/get_user_reputation?address=${address}`
         );
 
         if (reputationResponse.data && reputationResponse.data.reputation) {
           reputationScore =
-            reputationResponse.data.reputation.reputation_score || 1;
+            parseInt(reputationResponse.data.reputation.reputation_score) || 1;
           console.log('Fetched reputation score:', reputationScore);
         }
       } catch (reputationError) {

@@ -21,11 +21,8 @@ export default function App({ Component, pageProps }: AppProps) {
 
   const projectId = process.env.NEXT_PUBLIC_PROJECT_ID ?? '';
 
-  const selectedChain =
-    process.env.NEXT_PUBLIC_STAGE === 'testnet' ? baseSepolia : base;
-
   const { chains, publicClient, webSocketPublicClient } = configureChains(
-    [selectedChain],
+    [baseSepolia],
     [publicProvider()]
   );
 
