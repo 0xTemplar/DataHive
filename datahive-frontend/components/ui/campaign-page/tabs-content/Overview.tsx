@@ -15,10 +15,35 @@ import useCampaignStore, { Campaign } from '@/helpers/store/useCampaignStore';
 import { useAccount } from 'wagmi';
 
 interface UserReputation {
-  reputation_score: number;
-  contribution_count: number;
-  successful_payments: number;
+  address: string;
+  reputation_score: string;
+  contribution_count: string;
+  successful_payments: string;
+  campaign_contribution_count: string;
   has_store: boolean;
+  badge_count: string;
+  badges: Array<{
+    id: string;
+    name: string;
+    description: string;
+    score_threshold: string;
+    contribution_threshold: string;
+    payment_threshold: string;
+    campaign_contribution_threshold: string;
+  }>;
+  next_badges: Array<{
+    id: string;
+    name: string;
+    description: string;
+    score_threshold: string;
+    contribution_threshold: string;
+    payment_threshold: string;
+    campaign_contribution_threshold: string;
+    score_progress: number;
+    contribution_progress: number;
+    payment_progress: number;
+    campaign_progress: number;
+  }>;
 }
 
 interface OverviewProps {
@@ -110,17 +135,70 @@ const Overview: React.FC<OverviewProps> = ({
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const { setCampaign } = useCampaignStore();
   const { address, isConnected } = useAccount();
+  const [contractCampaignDetails, setContractCampaignDetails] = useState(null);
 
   useEffect(() => {
     setCampaign(campaign);
   }, [campaign, setCampaign]);
 
-  // If loading, show skeleton
+  useEffect(() => {
+    const fetchCampaignDetails = async () => {
+      try {
+        const campaignIdToFetch =
+          campaign.onchain_campaign_id || campaign.campaign_id;
+
+        console.log(
+          `Fetching contract campaign details for: ${campaignIdToFetch}`
+        );
+        const response = await fetch(
+          `/api/campaign/get_campaign_details?campaignId=${campaignIdToFetch}`
+        );
+
+        const data = await response.json();
+        console.log('Contract campaign details response:', data);
+
+        if (!response.ok) {
+          if (data.errorCode === 'CAMPAIGN_NOT_FOUND') {
+            console.warn(
+              `Campaign with ID ${campaignIdToFetch} not found on blockchain:`,
+              data.error
+            );
+          } else {
+            console.error('Error from campaign details API:', data.error);
+          }
+          return;
+        }
+
+        setContractCampaignDetails(data.data);
+
+        if (data.data && data.data.details) {
+          const blockchainData = data.data.details;
+          const updatedCampaign = {
+            ...campaign,
+            current_contributions:
+              parseInt(blockchainData.currentSubmissions) ||
+              campaign.current_contributions,
+            total_budget:
+              parseFloat(blockchainData.totalBudget) || campaign.total_budget,
+            unit_price:
+              parseFloat(blockchainData.unitPrice) || campaign.unit_price,
+          };
+          setCampaign(updatedCampaign);
+        }
+      } catch (error) {
+        console.error('Error fetching contract campaign details:', error);
+      }
+    };
+
+    if (campaign) {
+      fetchCampaignDetails();
+    }
+  }, [campaign, setCampaign]);
+
   if (isLoading) {
     return <OverviewSkeleton />;
   }
 
-  // Format the creation date
   const createdDate = new Date(campaign.created_at).toLocaleDateString(
     'en-US',
     {
@@ -130,42 +208,83 @@ const Overview: React.FC<OverviewProps> = ({
     }
   );
 
-  // Format the expiration date
   const expirationDate = new Date(campaign.expiration * 1000);
   const timeRemaining = Math.max(
     0,
     Math.floor((expirationDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   );
 
-  // Split requirements and quality criteria into bullet points
   const requirements = campaign.data_requirements.split('|||').filter(Boolean);
   const qualityCriteria = campaign.quality_criteria
     .split('|||')
     .filter(Boolean);
 
-  // Format wallet address for display
   const shortenedAddress = `${campaign.creator_wallet_address.slice(
     0,
     6
   )}...${campaign.creator_wallet_address.slice(-4)}`;
 
-  // Fetch user reputation
   const { data: reputationData, isLoading: isLoadingReputation } = useQuery<{
+    success: boolean;
     message: string;
     reputation: UserReputation;
   }>({
     queryKey: ['userReputation', campaign.creator_wallet_address],
     queryFn: async () => {
-      const response = await fetch(
-        `/api/campaign/getUserReputation?address=${campaign.creator_wallet_address}`
-      );
-      if (!response.ok) {
-        throw new Error('Failed to fetch reputation');
+      try {
+        const response = await fetch(
+          `/api/campaign/get_user_reputation?address=${campaign.creator_wallet_address}`
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Reputation API error:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText,
+          });
+          throw new Error(
+            `Failed to fetch reputation: ${response.status} ${response.statusText}`
+          );
+        }
+
+        const data = await response.json();
+        console.log('Reputation API raw response:', data);
+
+        return data;
+      } catch (error) {
+        console.error('Error fetching reputation data:', error);
+        throw error;
       }
-      return response.json();
     },
     staleTime: 30000,
   });
+
+  const displayReputationScore = () => {
+    if (isLoadingReputation) {
+      return (
+        <span className="text-purple-400 text-sm animate-pulse">
+          Loading reputation...
+        </span>
+      );
+    }
+
+    if (!reputationData || !reputationData.reputation) {
+      console.log('No reputation data available');
+      return <span className="text-purple-400 text-sm">New Creator</span>;
+    }
+
+    const repScore = reputationData.reputation.reputation_score;
+    console.log('Reputation score:', repScore);
+
+    if (!repScore || parseInt(repScore) === 0) {
+      return <span className="text-purple-400 text-sm">New Creator</span>;
+    }
+
+    return (
+      <span className="text-purple-400 text-sm">Reputation Score: {repScore} </span>
+    );
+  };
 
   return (
     <div className="space-y-8">
@@ -197,21 +316,7 @@ const Overview: React.FC<OverviewProps> = ({
                   {campaign.campaign_type} Campaign
                 </span>
 
-                {isLoadingReputation ? (
-                  <span className="text-purple-400 text-sm animate-pulse">
-                    Loading reputation...
-                  </span>
-                ) : (
-                  <span className="text-purple-400 text-sm">
-                    {reputationData?.reputation.reputation_score === 0 ? (
-                      <>New Creator</>
-                    ) : (
-                      <>
-                        {reputationData?.reputation.reputation_score} reputation
-                      </>
-                    )}
-                  </span>
-                )}
+                {displayReputationScore()}
               </div>
             </div>
           </div>
@@ -289,13 +394,36 @@ const Overview: React.FC<OverviewProps> = ({
 
         <div>
           <PaymentBreakdown
-            totalBudget={campaign?.total_budget}
-            contributorsCount={campaign?.unique_contributions_count}
-            submissionsCount={campaign?.current_contributions}
-            currency="MOVE"
+            totalBudget={
+              parseFloat(contractCampaignDetails?.details.totalBudget) ||
+              campaign?.total_budget
+            }
+            contributorsCount={campaign?.unique_contributions_count || 0}
+            submissionsCount={
+              parseInt(contractCampaignDetails?.details.currentSubmissions) ||
+              campaign?.current_contributions
+            }
+            remainingBudget={parseFloat(
+              contractCampaignDetails?.details.remainingBudget
+            )}
+            maxSubmissions={
+              parseInt(contractCampaignDetails?.details.maxSubmissions) ||
+              campaign?.max_data_count
+            }
+            currency="DHT"
           />
         </div>
       </div>
+
+      {/* Add a small message at the bottom to indicate blockchain data is being used */}
+      {contractCampaignDetails && (
+        <div className="text-xs text-[#f5f5fa7a] mb-4">
+          <span className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+            Showing real-time data from the blockchain
+          </span>
+        </div>
+      )}
 
       {/* Only show Submit Data button if user is not the owner */}
       {!isOwner && (

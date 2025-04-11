@@ -39,7 +39,7 @@ const CampaignRewards = () => {
             <div className="absolute -inset-0.5 bg-gradient-to-r from-[#6366f1] to-[#a855f7] rounded-2xl opacity-75 blur"></div>
             <div className="relative p-6 bg-[#0f0f17] rounded-xl space-y-2">
               <label className="block text-sm font-medium text-[#f5f5faf4]">
-                Total Budget (MOVE)
+                Total Budget (DHT)
               </label>
               <div className="relative">
                 <input
@@ -149,7 +149,7 @@ const CampaignRewards = () => {
           {/* Unit Price Input */}
           <div className="relative group">
             <label className="block text-sm font-medium text-[#f5f5faf4] mb-2">
-              Reward per Submission (MOVE)
+              Reward per Submission (DHT)
             </label>
             <div className="relative">
               <input

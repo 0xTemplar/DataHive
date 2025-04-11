@@ -23,6 +23,44 @@
   }
 }
 
+/* Page transition styles */
+.layout-container {
+  min-height: 100vh;
+  position: relative;
+}
+
+.page-content {
+  transition: opacity 0.25s ease-in-out;
+}
+
+body.page-transition .page-content {
+  opacity: 0.5;
+}
+
+body.page-loaded .page-content {
+  opacity: 1;
+}
+
+/* For the sidebar */
+nav.custom-scrollbar {
+  transition: opacity 0.3s ease-in-out;
+  transition-delay: 0.1s;
+  opacity: 1;
+}
+
+/* Prevent layout shift during loading */
+.layout-container::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 230px; /* Same as sidebar width */
+  height: 100vh;
+  background-color: #0f0f17;
+  border-right: 1px solid #1a1a1a;
+  z-index: 0;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

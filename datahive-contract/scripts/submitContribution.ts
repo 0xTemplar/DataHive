@@ -85,7 +85,7 @@ async function main() {
     console.log('Continuing anyway since the setup might still work...');
   }
 
-  const campaignId = 0; // This should match campaign-001
+  const campaignIdString = 'campaign_286c9ff0c686a014'; // This should match campaign-001
   const timestamp = new Date().getTime();
   const encryptedDataHash =
     '0x' +
@@ -96,6 +96,15 @@ async function main() {
   const score = 85; // Verification score (higher than the reward threshold of 80)
 
   try {
+    // Get numeric campaign ID from string ID
+    console.log(
+      `Getting numeric campaign ID for string ID: ${campaignIdString}`
+    );
+    const campaignId = await campaignManager.getCampaignIdFromString(
+      campaignIdString
+    );
+    console.log(`Numeric campaign ID: ${campaignId}`);
+
     const campaign = await campaignManager.getCampaignDetails(campaignId);
     console.log(`Campaign details:`);
     console.log(`- Campaign ID: ${campaign.id}`);

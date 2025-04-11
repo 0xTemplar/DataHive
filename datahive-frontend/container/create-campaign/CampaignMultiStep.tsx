@@ -10,18 +10,43 @@ import CampaignRewards from '@/components/ui/multistep-components/CampaignReward
 import CampaignReview from '@/components/ui/multistep-components/CampaignReview';
 import CampaignSuccess from '@/components/ui/multistep-components/CampaignSuccess';
 import { CampaignProvider, useCampaign } from '@/context/CampaignContext';
-import { createCampaign } from '@/utils/entry-functions/create-campaign';
 import { generateCampaignKeys } from '@/utils/crypto/generateCampaignKeys';
-import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
+import {
+  createPublicClient,
+  http,
+  parseAbi,
+  createWalletClient,
+  formatEther,
+  parseEther,
+  getContract,
+} from 'viem';
+import { baseSepolia } from 'viem/chains';
+import CampaignManagerABI from '@/abi/CampaignManager.json';
+import DataHiveTokenABI from '@/abi/DataHiveToken.json';
+import { custom } from 'viem';
+import crypto from 'crypto';
 
-const config = new AptosConfig({
-  network: Network.TESTNET,
-  fullnode: 'https://aptos.testnet.bardock.movementlabs.xyz/v1',
-  faucet: 'https://faucet.testnet.bardock.movementnetwork.xyz/',
-});
+// Add window.ethereum type declaration
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
 
 const pinataEndpoint = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
 const backendBaseUrl = process.env.NEXT_PUBLIC_BACKEND_BASE_URL;
+
+// Contract addresses - should be moved to environment variables
+const campaignManagerAddress =
+  process.env.NEXT_PUBLIC_CAMPAIGN_MANAGER_ADDRESS || '0x...';
+const dataHiveTokenAddress =
+  process.env.NEXT_PUBLIC_DATA_HIVE_TOKEN_ADDRESS || '0x...';
+
+// Create viem clients
+const publicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(),
+});
 
 const steps = [
   { label: 'Campaign Type', description: '' },
@@ -39,9 +64,8 @@ const CampaignStepContent = () => {
     null
   );
 
-  const { address, signAndSubmitTransaction } = useAccount();
+  const { address } = useAccount();
   const { validateStep, campaignData } = useCampaign();
-  const aptos = new Aptos(config);
 
   const handleCreateCampaign = async () => {
     if (!address) {
@@ -55,6 +79,19 @@ const CampaignStepContent = () => {
       const { publicKey, privateKey } = await generateCampaignKeys();
       setCampaignPrivateKey(privateKey);
 
+      const uniqueIdData = `${Date.now()}_${address}_${
+        campaignData.details.title
+      }`;
+      const campaignIdHash = crypto
+        .createHash('sha256')
+        .update(uniqueIdData)
+        .digest('hex')
+        .substring(0, 16);
+      const uniqueCampaignId = `campaign_${campaignIdHash}`;
+
+      console.log('Generated unique campaign ID:', uniqueCampaignId);
+
+      // Create campaign metadata
       const metadata = {
         type: campaignData.type?.name,
         title: campaignData.details.title,
@@ -68,8 +105,10 @@ const CampaignStepContent = () => {
           maxDataCount: campaignData.rewards.maxDataCount,
         },
         expirationDate: campaignData.details.expirationDate,
+        campaignId: uniqueCampaignId, // Include the campaign ID in metadata
       };
 
+      // Upload metadata to IPFS
       const formData = new FormData();
       const jsonBlob = new Blob([JSON.stringify(metadata)], {
         type: 'application/json',
@@ -95,59 +134,140 @@ const CampaignStepContent = () => {
 
       const metadataUri = `https://gateway.pinata.cloud/ipfs/${metadataPinataResponse.data.IpfsHash}`;
 
-      const payload = createCampaign({
-        campaignId: `campaign_${Date.now()}`,
+      // Create wallet client for transactions using window.ethereum
+      const walletClient = createWalletClient({
+        chain: baseSepolia,
+        transport: custom(window.ethereum),
+      });
+
+      // Calculate current timestamp and expiration time (1 week from now)
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      const oneWeekInSeconds = 7 * 24 * 60 * 60;
+      const expirationTimestamp = Math.floor(
+        new Date(campaignData.details.expirationDate).getTime() / 1000
+      );
+
+      const campaignParams = {
+        campaignIdString: uniqueCampaignId,
         title: campaignData.details.title,
         description: campaignData.details.description,
         dataRequirements: campaignData.details.requirements,
         qualityCriteria: campaignData.details.qualityCriteria,
-        unitPrice: Number(campaignData.rewards.unitPrice),
-        totalBudget: Number(campaignData.rewards.totalBudget),
-        minDataCount: Number(campaignData.rewards.minDataCount),
-        maxDataCount: Number(campaignData.rewards.maxDataCount),
-        expirationDate: new Date(campaignData.details.expirationDate),
-        metadataUri,
-        encryptionPubKey: publicKey,
-      });
+        unitPrice: parseEther(campaignData.rewards.unitPrice.toString()),
+        totalBudget: parseEther(campaignData.rewards.totalBudget.toString()),
+        maxSubmissions: BigInt(campaignData.rewards.maxDataCount),
+        startTime: BigInt(currentTimestamp),
+        expiration: BigInt(expirationTimestamp),
+        metadataURI: metadataUri,
+        platformFee: BigInt(250), // Default 2.5% platform fee (250 basis points)
+        encryptionPublicKey: publicKey,
+        rewardThreshold: BigInt(75), // Default minimum score of 75 to qualify for rewards
+      };
 
-      console.log('Transaction payload:', payload.data);
+      console.log('Campaign params:', campaignParams);
 
-      let response;
       try {
-        response = await signAndSubmitTransaction({
-          sender: address,
-          data: payload.data,
-          options: {
-            maxGasAmount: 200000,
-            gasUnitPrice: 1000,
-          },
+        console.log(`Approving tokens for campaign manager...`);
+
+        const approveTx = await walletClient.writeContract({
+          address: dataHiveTokenAddress as `0x${string}`,
+          abi: DataHiveTokenABI,
+          functionName: 'approve',
+          args: [
+            campaignManagerAddress as `0x${string}`,
+            campaignParams.totalBudget,
+          ],
+          account: address as `0x${string}`,
+          chain: baseSepolia,
         });
 
-        const result = await aptos.waitForTransaction({
-          transactionHash: response.hash,
+        console.log('Token approval transaction hash:', approveTx);
+
+        const approvalReceipt = await publicClient.waitForTransactionReceipt({
+          hash: approveTx,
         });
 
-        console.log('Transaction confirmed:', result);
+        console.log('Token approval confirmed:', approvalReceipt);
 
-        if (result.success) {
-          setTxHash(response.hash);
+        // Ensure qualityCriteria is passed as an array
+        // Convert to array if it's not already
+        const qualityCriteriaArray = Array.isArray(
+          campaignParams.qualityCriteria
+        )
+          ? campaignParams.qualityCriteria
+          : campaignData.details.qualityCriteria
+              .split('\n')
+              .filter((line) => line.trim() !== '');
+
+        console.log(
+          'Creating campaign with quality criteria:',
+          qualityCriteriaArray
+        );
+
+        // Restructure the campaign parameters for the contract call
+        const contractParams = {
+          campaignIdString: campaignParams.campaignIdString,
+          title: campaignParams.title,
+          description: campaignParams.description,
+          dataRequirements: campaignParams.dataRequirements,
+          qualityCriteria: qualityCriteriaArray,
+          unitPrice: campaignParams.unitPrice,
+          totalBudget: campaignParams.totalBudget,
+          maxSubmissions: campaignParams.maxSubmissions,
+          startTime: campaignParams.startTime,
+          expiration: campaignParams.expiration,
+          metadataURI: campaignParams.metadataURI,
+          platformFee: campaignParams.platformFee,
+          encryptionPublicKey: campaignParams.encryptionPublicKey,
+          rewardThreshold: campaignParams.rewardThreshold,
+        };
+
+        console.log('Creating campaign with contract params:', contractParams);
+
+        console.log('Creating campaign...');
+        const tx = await walletClient.writeContract({
+          address: campaignManagerAddress as `0x${string}`,
+          abi: CampaignManagerABI,
+          functionName: 'createCampaign',
+          args: [contractParams],
+          account: address as `0x${string}`,
+          chain: baseSepolia,
+        });
+
+        console.log(`Transaction hash: ${tx}`);
+        setTxHash(tx);
+
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: tx,
+        });
+
+        console.log('Transaction confirmed:', receipt);
+
+        if (receipt.status === 'success') {
+          console.log(
+            'Campaign created successfully with transaction hash:',
+            tx
+          );
 
           try {
+            // Save to backend
             const backendPayload = {
-              onchain_campaign_id: payload.data.functionArguments[0], // campaignId
-              title: payload.data.functionArguments[1], // title
-              description: payload.data.functionArguments[2], // description
-              data_requirements: payload.data.functionArguments[3], // dataRequirements
-              quality_criteria: payload.data.functionArguments[4], // qualityCriteria
-              unit_price: Number(payload.data.functionArguments[5]), // unitPrice
+              onchain_campaign_id: uniqueCampaignId,
+              title: contractParams.title,
+              description: contractParams.description,
+              data_requirements: contractParams.dataRequirements,
+              quality_criteria: Array.isArray(contractParams.qualityCriteria)
+                ? contractParams.qualityCriteria.join('|||')
+                : contractParams.qualityCriteria,
+              unit_price: Number(formatEther(contractParams.unitPrice)),
               campaign_type: campaignData.type?.name || 'default',
-              total_budget: Number(payload.data.functionArguments[6]), // totalBudget
-              min_data_count: Number(payload.data.functionArguments[7]), // minDataCount
-              max_data_count: Number(payload.data.functionArguments[8]), // maxDataCount
-              expiration: Number(payload.data.functionArguments[9]), // expirationDate in seconds
-              metadata_uri: payload.data.functionArguments[10], // metadataUri
-              transaction_hash: response.hash,
-              platform_fee: Number(payload.data.functionArguments[11]), // PLATFORM_FEE_BASIS_POINTS
+              total_budget: Number(formatEther(contractParams.totalBudget)),
+              min_data_count: Number(campaignData.rewards.minDataCount),
+              max_data_count: Number(contractParams.maxSubmissions),
+              expiration: Number(contractParams.expiration),
+              metadata_uri: contractParams.metadataURI,
+              transaction_hash: tx,
+              platform_fee: Number(contractParams.platformFee),
               creator_wallet_address: address,
             };
 
@@ -178,10 +298,7 @@ const CampaignStepContent = () => {
             autoClose: 7000,
           });
 
-          localStorage.setItem(
-            `campaign_${response.hash}_private_key`,
-            privateKey
-          );
+          localStorage.setItem(`campaign_${tx}_private_key`, privateKey);
 
           setCurrentStep(steps.length - 1);
         } else {

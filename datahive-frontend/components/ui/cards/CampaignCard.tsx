@@ -77,7 +77,7 @@ const CampaignCard: React.FC<CampaignCardProps> = ({ campaign }) => {
             <div className="border-b pb-2 border-gray-800 pl-9">
               <p className="text-gray-400 text-xs">Campaign Budget</p>
               <p className="text-white font-medium mt-1">
-                {(campaign.total_budget / 100000000).toFixed(2)} MOVE
+                {campaign.total_budget} DHT
               </p>
             </div>
             <div className="border-r border-gray-800">
