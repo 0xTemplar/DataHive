@@ -29,7 +29,9 @@ const campaignTypes: PlanType[] = [
 const CampaignType = () => {
   const [isDisabled, setIsDisabled] = useState(false);
   const { updateCampaignType, errors, campaignData } = useCampaign();
-  const { isSubscribed } = useSubscription();
+  // const { isSubscribed } = useSubscription();
+
+  const isSubscribed = true;
 
   // Set premium enabled based on subscription status
   const isPremiumEnabled = isSubscribed;

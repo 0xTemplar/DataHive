@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import ContributionsTable from '../table/ContributionsTable';
 import { IoCloudDownloadOutline } from 'react-icons/io5';
 import { HiSparkles } from 'react-icons/hi';
-import BulkDecryptModal from '@/components/modals/BulkDecryptModal';
+import BulkExportModal from '@/components/modals/BulkExportModal';
 import toast from 'react-hot-toast';
 
 interface Campaign {
@@ -25,6 +25,7 @@ interface Campaign {
   total_budget: number;
   transaction_hash: string;
   unit_price: number;
+  bucket_name?: string;
 }
 
 interface ContributionsProps {
@@ -73,7 +74,7 @@ const Contributions: React.FC<ContributionsProps> = ({
   campaign,
   isLoading,
 }) => {
-  const [isBulkDecryptOpen, setIsBulkDecryptOpen] = useState(false);
+  const [isBulkExportOpen, setIsBulkExportOpen] = useState(false);
   const [contributions, setContributions] = useState<any[]>([]); // We'll get this from ContributionsTable
 
   // If loading, show skeleton
@@ -83,12 +84,10 @@ const Contributions: React.FC<ContributionsProps> = ({
 
   const handleExportClick = () => {
     if (contributions.length === 0) {
-      toast('No contributions available to export', {
-        icon: '⚠️',
-      });
+      toast.error('No contributions to export');
       return;
     }
-    setIsBulkDecryptOpen(true);
+    setIsBulkExportOpen(true);
   };
 
   return (
@@ -113,10 +112,12 @@ const Contributions: React.FC<ContributionsProps> = ({
       </div>
       <ContributionsTable onContributionsChange={setContributions} />
 
-      <BulkDecryptModal
-        isOpen={isBulkDecryptOpen}
-        onClose={() => setIsBulkDecryptOpen(false)}
+      <BulkExportModal
+        isOpen={isBulkExportOpen}
+        onClose={() => setIsBulkExportOpen(false)}
         contributions={contributions}
+        bucketName={campaign.bucket_name || 'fake_news_detection'}
+        campaignId={campaign.campaign_id}
       />
     </div>
   );

@@ -422,7 +422,7 @@ contract CampaignManager is Ownable, ReentrancyGuard {
     /**
      * @dev Gets the encryption public key for a campaign
      * @param _campaignId The ID of the campaign
-     * @return The RSA public key used for encrypting submissions
+     * @return The RSA public key used 
      */
     function getCampaignEncryptionPublicKey(uint256 _campaignId) 
         external 

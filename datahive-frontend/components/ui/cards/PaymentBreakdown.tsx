@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
+import React from 'react';
 import {
   HiCurrencyDollar,
   HiUsers,
@@ -8,54 +7,34 @@ import {
   HiArrowSmUp,
   HiArrowSmDown,
 } from 'react-icons/hi';
-import { getRemainingCampaignAmount } from '@/utils/aptos/getterFunctions';
-import { octasToMove } from '@/utils/aptos/octasToMove';
 
 interface PaymentBreakdownProps {
   totalBudget: number;
   contributorsCount: number;
   submissionsCount: number;
   currency?: string;
+  remainingBudget?: number;
+  maxSubmissions?: number;
 }
 
 const PaymentBreakdown = ({
   totalBudget,
   contributorsCount,
   submissionsCount,
-  currency = 'MOVE',
+  currency = 'DHT',
+  remainingBudget,
+  maxSubmissions,
 }: PaymentBreakdownProps) => {
-  const router = useRouter();
-  const { id } = router.query;
-  const [isLoading, setIsLoading] = useState(false);
-  const [remainingBudget, setRemainingBudget] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchRemainingAmount = async () => {
-      if (!id || typeof id !== 'string') return;
-
-      setIsLoading(true);
-      try {
-        const result = await getRemainingCampaignAmount(id);
-        if (result) {
-          console.log('Campaign Remaining Amount:', {
-            octas: result.remainingBudgetOctas,
-            move: result.remainingBudgetMove,
-          });
-          setRemainingBudget(result.remainingBudgetOctas);
-        }
-      } catch (error) {
-        console.error('Error in PaymentBreakdown:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchRemainingAmount();
-  }, [id]);
-
-  const actualRemainingBudget = remainingBudget ? Number(remainingBudget) : 0;
+  // Calculate spent budget
+  const actualRemainingBudget = remainingBudget || 0;
   const spentBudget = totalBudget - actualRemainingBudget;
-  const spentPercentage = (spentBudget / totalBudget) * 100;
+  const spentPercentage =
+    totalBudget > 0 ? (spentBudget / totalBudget) * 100 : 0;
+
+  // Calculate progress percentage for submissions
+  const submissionPercentage = maxSubmissions
+    ? (submissionsCount / maxSubmissions) * 100
+    : 0;
 
   return (
     <div className="radial-gradient-border rounded-xl p-6 w-[370px]">
@@ -84,8 +63,7 @@ const PaymentBreakdown = ({
               <span className="text-[#f5f5fa7a] text-xs">Total Budget</span>
               <div className="flex items-center gap-2">
                 <span className="text-[#f5f5faf4] text-xl font-semibold">
-                  {octasToMove(totalBudget)}{' '}
-                  <span className="text-xs">MOVE</span>
+                  {totalBudget} <span className="text-xs">{currency}</span>
                 </span>
                 <HiChartPie className="w-4 h-4 text-[#a855f7]" />
               </div>
@@ -109,6 +87,11 @@ const PaymentBreakdown = ({
               <div className="flex items-center gap-2">
                 <span className="text-[#f5f5faf4] text-xl font-semibold">
                   {submissionsCount}
+                  {maxSubmissions && (
+                    <span className="text-xs text-[#f5f5fa7a] ml-1">
+                      / {maxSubmissions}
+                    </span>
+                  )}
                 </span>
                 <HiDocumentText className="w-4 h-4 text-[#6366f1]" />
               </div>
@@ -117,8 +100,10 @@ const PaymentBreakdown = ({
               <span className="text-[#f5f5fa7a] text-xs">Remaining Budget</span>
               <div className="flex items-center gap-2">
                 <span className="text-[#f5f5faf4] text-xl font-semibold">
-                  {isLoading ? '...' : octasToMove(actualRemainingBudget)}
-                  <span className="text-xs text-[#f5f5faf4] ml-1">MOVE</span>
+                  {actualRemainingBudget}
+                  <span className="text-xs text-[#f5f5faf4] ml-1">
+                    {currency}
+                  </span>
                 </span>
                 <HiArrowSmUp className="w-4 h-4 text-green-500" />
               </div>
@@ -126,20 +111,45 @@ const PaymentBreakdown = ({
           </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[#f5f5fa7a] text-xs">Budget Utilization</span>
-            <span className="text-[#f5f5faf4] text-xs font-medium">
-              {isLoading ? '...' : `${spentPercentage.toFixed(1)}%`}
-            </span>
+        {/* Progress Bars */}
+        <div className="space-y-4">
+          {/* Budget Progress */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[#f5f5fa7a] text-xs">
+                Budget Utilization
+              </span>
+              <span className="text-[#f5f5faf4] text-xs font-medium">
+                {`${spentPercentage.toFixed(1)}%`}
+              </span>
+            </div>
+            <div className="h-2 w-full bg-[#f5f5fa14] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#6366f1] to-[#a855f7] rounded-full transition-all duration-500"
+                style={{ width: `${spentPercentage}%` }}
+              />
+            </div>
           </div>
-          <div className="h-2 w-full bg-[#f5f5fa14] rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-[#6366f1] to-[#a855f7] rounded-full transition-all duration-500"
-              style={{ width: `${spentPercentage}%` }}
-            />
-          </div>
+
+          {/* Submission Progress */}
+          {maxSubmissions && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[#f5f5fa7a] text-xs">
+                  Submission Capacity
+                </span>
+                <span className="text-[#f5f5faf4] text-xs font-medium">
+                  {`${submissionPercentage.toFixed(1)}%`}
+                </span>
+              </div>
+              <div className="h-2 w-full bg-[#f5f5fa14] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-[#6366f1] to-[#a855f7] rounded-full transition-all duration-500"
+                  style={{ width: `${submissionPercentage}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Additional Stats */}
@@ -148,7 +158,7 @@ const PaymentBreakdown = ({
             <span className="text-[#f5f5fa7a] text-xs">Budget Spent</span>
             <div className="flex items-center gap-2">
               <span className="text-[#f5f5faf4] text-sm font-medium">
-                {isLoading ? '...' : `${octasToMove(spentBudget)} ${currency}`}
+                {`${spentBudget.toFixed(2)} ${currency}`}
               </span>
               <HiArrowSmDown className="w-4 h-4 text-[#a855f7]" />
             </div>

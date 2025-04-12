@@ -44,11 +44,13 @@ async function main() {
   )) as CampaignManager;
 
   // Campaign ID to fetch contributions for
-  const campaignId = 0; // Change this to the campaign ID you want to check
+  const campaignId = 'campaign_262e81b4b7aab613'; // Change this to the campaign ID you want to check
 
   try {
     // Get campaign details first to show what campaign we're examining
-    const campaign = await campaignManager.getCampaignDetails(campaignId);
+    const campaign = await campaignManager.getCampaignDetailsByString(
+      campaignId
+    );
 
     console.log('\nCAMPAIGN DETAILS:');
     console.log('================');
@@ -72,8 +74,9 @@ async function main() {
     console.log('----------------\n');
 
     // Get all contributions for this campaign
+    const numericCampaignId = campaign.id;
     const contributionIds = await contributionManager.getCampaignSubmissions(
-      campaignId
+      numericCampaignId
     );
 
     console.log(

@@ -772,7 +772,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ campaign, isLoading }) => {
         <StatCard
           icon={HiCurrencyDollar}
           label="Avg. Cost/Submission"
-          value={`${avgCostPerSubmission} MOVE`}
+          value={`${avgCostPerSubmission} DHT`}
           color="bg-gradient-to-r from-[#6366f1] to-[#a855f7]"
         />
       </div>

@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import Overview from './tabs-content/Overview';
 import Contributions from './tabs-content/Contributions';
 import Analytics from './tabs-content/Analytics';
+import Training from './tabs-content/Training';
 import { useAccount } from 'wagmi';
 import { useRouter } from 'next/router';
 import { useQuery } from '@tanstack/react-query';
-import { useSubscription } from '@/context/SubscriptionContext';
 
 interface Campaign {
   campaign_id: string;
@@ -35,7 +35,6 @@ const Tabs: React.FC = () => {
   const { address } = useAccount();
   const router = useRouter();
   const { id } = router.query;
-  const { isSubscribed } = useSubscription();
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_BASE_URL;
 
   const {
@@ -60,18 +59,15 @@ const Tabs: React.FC = () => {
   });
 
   const isOwner = address === campaignData?.creator_wallet_address;
-  const canAccessAnalytics = isOwner && isSubscribed;
 
   useEffect(() => {
-    // Redirect to overview if user is not the owner or trying to access analytics without subscription
     if (
-      (!isOwner &&
-        (activeTab === 'contributions' || activeTab === 'analytics')) ||
-      (activeTab === 'analytics' && !isSubscribed)
+      !isOwner &&
+      (activeTab === 'contributions' || activeTab === 'analytics')
     ) {
       setActiveTab('overview');
     }
-  }, [isOwner, activeTab, isSubscribed]);
+  }, [isOwner, activeTab]);
 
   // Show loading skeleton on initial load or when refetching data
   if (isLoading || (isFetching && !campaignData)) {
@@ -86,9 +82,7 @@ const Tabs: React.FC = () => {
           </div>
         </div>
 
-        {/* Tab Content Skeleton - We show this at the Tabs component level instead of in each tab component */}
         <div className="mt-6 space-y-6">
-          {/* Header Section Skeleton */}
           <div className="flex items-start justify-between">
             <div className="space-y-6">
               <div className="flex items-center gap-4">
@@ -193,35 +187,27 @@ const Tabs: React.FC = () => {
                 Contributions
               </button>
 
-              {/* Only show analytics tab if user is subscribed */}
-              {isSubscribed ? (
-                <button
-                  onClick={() => setActiveTab('analytics')}
-                  className={`pb-4 text-sm font-medium relative ${
-                    activeTab === 'analytics'
-                      ? 'text-white after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-gradient-to-r after:from-[#6366f1] after:to-[#a855f7]'
-                      : 'text-gray-400 hover:text-gray-300'
-                  }`}
-                >
-                  Analytics{' '}
-                  <span className="bg-gradient-to-r from-[#6366f1] to-[#a855f7] text-white p-1 px-2 rounded-md rounded-bl-[20px] rounded-l-none rounded-tr-[20px] py-1 text-xs font-semibold">
-                    Premium
-                  </span>
-                </button>
-              ) : (
-                <button
-                  className={`pb-4 text-sm font-medium relative text-gray-400  ${
-                    isSubscribed
-                      ? 'cursor-pointer hover:text-gray-300'
-                      : 'cursor-not-allowed'
-                  }`}
-                >
-                  Analytics{' '}
-                  <span className="bg-gradient-to-r from-[#6366f1] to-[#a855f7] text-white p-1 px-2 rounded-md rounded-bl-[20px] rounded-l-none rounded-tr-[20px] py-1 text-xs font-semibold">
-                    (premium only)
-                  </span>
-                </button>
-              )}
+              <button
+                onClick={() => setActiveTab('analytics')}
+                className={`pb-4 text-sm font-medium relative ${
+                  activeTab === 'analytics'
+                    ? 'text-white after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-gradient-to-r after:from-[#6366f1] after:to-[#a855f7]'
+                    : 'text-gray-400 hover:text-gray-300'
+                }`}
+              >
+                Analytics
+              </button>
+
+              <button
+                onClick={() => setActiveTab('training')}
+                className={`pb-4 text-sm font-medium relative ${
+                  activeTab === 'training'
+                    ? 'text-white after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-gradient-to-r after:from-[#6366f1] after:to-[#a855f7]'
+                    : 'text-gray-400 hover:text-gray-300'
+                }`}
+              >
+                Training
+              </button>
             </>
           )}
         </div>
@@ -243,9 +229,14 @@ const Tabs: React.FC = () => {
             <Contributions campaign={campaignData} isLoading={false} />
           </div>
         )}
-        {canAccessAnalytics && activeTab === 'analytics' && (
+        {isOwner && activeTab === 'analytics' && (
           <div>
             <Analytics campaign={campaignData} isLoading={false} />
+          </div>
+        )}
+        {isOwner && activeTab === 'training' && (
+          <div>
+            <Training campaign={campaignData} isLoading={false} />
           </div>
         )}
       </div>

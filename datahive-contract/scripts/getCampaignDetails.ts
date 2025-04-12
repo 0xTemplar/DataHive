@@ -6,9 +6,9 @@ import * as path from 'path';
 async function main() {
   // Get arguments from command line
   const args = process.argv.slice(2);
-  const campaignId = args[0] ? parseInt(args[0]) : 0; // Default to campaign ID 0 if not provided
+  const campaignIdInput = args[0] || 'campaign_286c9ff0c686a014'; // Default to campaign ID if not provided
 
-  console.log(`Reading details for campaign ID: ${campaignId}`);
+  console.log(`Reading details for campaign: ${campaignIdInput}`);
 
   // Load deployed addresses from the JSON file
   const deploymentPath = path.join(
@@ -31,8 +31,21 @@ async function main() {
   )) as CampaignManager;
 
   try {
-    // Get campaign details
-    const campaign = await campaignManager.getCampaignDetails(campaignId);
+    let campaign;
+
+    // Determine if the campaignId is numeric or a string ID
+    if (/^\d+$/.test(campaignIdInput)) {
+      // If it's a numeric ID, use getCampaignDetails
+      console.log(`Using numeric ID: ${campaignIdInput}`);
+      const numericId = parseInt(campaignIdInput);
+      campaign = await campaignManager.getCampaignDetails(numericId);
+    } else {
+      // If it's a string ID, use getCampaignDetailsByString
+      console.log(`Using string ID: ${campaignIdInput}`);
+      campaign = await campaignManager.getCampaignDetailsByString(
+        campaignIdInput
+      );
+    }
 
     // Format the details for better readability
     const details = {
@@ -58,7 +71,11 @@ async function main() {
     console.log('Campaign Details:');
     console.log(JSON.stringify(details, null, 2));
 
-    // Get additional campaign status
+    // Get additional campaign status - need to convert string ID to numeric if needed
+    const campaignId = /^\d+$/.test(campaignIdInput)
+      ? parseInt(campaignIdInput)
+      : campaign.id;
+
     const status = await campaignManager.getCampaignStatus(campaignId);
     console.log('\nCampaign Status:');
     console.log(`Active: ${status[0]}`);

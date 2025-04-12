@@ -28,7 +28,8 @@ interface VerificationCheck {
 
 const PASS_MARK = 80;
 const baseUrl = process.env.NEXT_PUBLIC_BACKEND_BASE_URL;
-const useSimulation = process.env.NEXT_PUBLIC_IS_TESTNET === 'true';
+// const useSimulation = process.env.NEXT_PUBLIC_IS_TESTNET === 'true';
+const useSimulation = true;
 
 const AIVerification: React.FC<AIVerificationProps> = ({
   onNext,
