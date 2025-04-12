@@ -68,8 +68,8 @@ class AkaveLinkAPI:
     def create_bucket(self, bucket_name):
         """
         Create a new storage bucket.
-        
-        Returns just the bucket details (the dictionary inside the "data" key).
+
+        Returns just the bucket details (the dictionary of bucket details).
         
         :param bucket_name: Name of the bucket to create.
         :return: Bucket details as a dict.
@@ -78,8 +78,8 @@ class AkaveLinkAPI:
         payload = {"bucketName": bucket_name}
         resp = self._request("POST", endpoint, json_data=payload)
         
-        # Check that the "data" field is a dict; if not, raise an error.
-        bucket_data = resp.get("data")
+        # Use the entire response if "data" key is not present
+        bucket_data = resp.get("data", resp)
         if not isinstance(bucket_data, dict):
             raise AkaveLinkAPIError("Unexpected output format for bucket creation")
         return bucket_data
@@ -176,15 +176,15 @@ class AkaveLinkAPI:
 if __name__ == "__main__":
     # Instantiate the API client (make sure the Docker container is running)
     api = AkaveLinkAPI()
-    bucket_name = "data"
+    bucket_name = "data_test_01"
     
-    # try:
-    #     # Create a new bucket named "databucket"
-    #     print(f"Creating bucket '{bucket_name}'...")
-    #     bucket_details = api.create_bucket(bucket_name)
-    #     print("Create Bucket Response:", bucket_details)
-    # except AkaveLinkAPIError as err:
-    #     print("Error creating bucket:", err)
+    try:
+        # Create a new bucket named "databucket"
+        print(f"Creating bucket '{bucket_name}'...")
+        bucket_details = api.create_bucket(bucket_name)
+        print("Create Bucket Response:", bucket_details)
+    except AkaveLinkAPIError as err:
+        print("Error creating bucket:", err)
 
     try:
         # List all buckets

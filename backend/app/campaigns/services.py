@@ -24,11 +24,13 @@ def serialize_campaign(campaign: Campaign, contributions_count: int) -> dict:
         "transaction_hash": campaign.transaction_hash,
         "platform_fee": campaign.platform_fee,
         "is_active": campaign.is_active,
+        "is_csv_only_campaign": campaign.is_csv_only_campaign,  # <-- Added field
         "created_at": campaign.created_at,
         "bucket_name": campaign.bucket_name,
         "creator_wallet_address": campaign.creator_wallet_address or "",
         "current_contributions": contributions_count,
     }
+
 
 
 def track_campaign_activity_overall(campaign_id: str, db: Session, contribution: Contribution):
