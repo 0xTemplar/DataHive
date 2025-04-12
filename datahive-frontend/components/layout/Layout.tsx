@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import dynamic from 'next/dynamic';
-// import SubscriptionModal from '../modals/SubscriptionModal';
+import MintTokensModal from '../modals/MintTokensModal';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { HiSparkles, HiOutlineStar } from 'react-icons/hi';
 import Login from '@/container/Login';
@@ -13,7 +13,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [isMintModalOpen, setIsMintModalOpen] = useState(false);
   const { isSubscribed, isLoading, subscriptionStatus, refreshSubscription } =
     useSubscription();
   const { isConnected } = useAccount();
@@ -34,7 +34,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </button>
 
             <button
-              // onClick={() => setIsSubscriptionModalOpen(true)}
+              onClick={() => setIsMintModalOpen(true)}
               className="relative group overflow-hidden bg-gradient-to-r from-[#6366f1]/20 to-[#a855f7]/20 hover:from-[#6366f1]/30 hover:to-[#a855f7]/30 rounded-lg text-sm p-2 px-4 transition-all duration-300 border border-[#a855f7]/30"
             >
               {/* Animated background effect */}
@@ -56,10 +56,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
           {children}
 
-          {/* <SubscriptionModal
-            isOpen={isSubscriptionModalOpen}
-            onClose={() => setIsSubscriptionModalOpen(false)}
-          /> */}
+          <MintTokensModal
+            isOpen={isMintModalOpen}
+            onClose={() => setIsMintModalOpen(false)}
+          />
         </div>
       ) : (
         <Login />

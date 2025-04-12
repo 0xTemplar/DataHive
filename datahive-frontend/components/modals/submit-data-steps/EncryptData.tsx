@@ -3,15 +3,17 @@ import {
   LockClosedIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
+  CloudArrowUpIcon,
 } from '@heroicons/react/24/outline';
-import { encryptFile } from '@/utils/crypto/generateCampaignKeys';
-import { submitContribution } from '@/utils/entry-functions/submit-contribution';
+import { submitContributionOnChain } from '@/utils/contract-functions/submitContribution';
 import { useAccount } from 'wagmi';
 import axios from 'axios';
 import { useRouter } from 'next/router';
-import { HexString } from 'aptos';
 import { toast } from 'react-toastify';
 import crypto from 'crypto';
+import useCampaignStore from '@/helpers/store/useCampaignStore';
+import { createWalletClient, custom } from 'viem';
+import { baseSepolia } from 'viem/chains';
 
 interface EncryptDataProps {
   onNext: () => void;
@@ -28,14 +30,21 @@ interface EncryptDataProps {
   updateSubmissionData: (data: Partial<{ encryptionStatus: any }>) => void;
 }
 
-const encryptionSteps = [
+// Add window.ethereum type
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
+const uploadSteps = [
   { id: 1, name: 'Preparing Data' },
-  { id: 2, name: 'Fetching Public Keys' },
-  { id: 3, name: 'Encrypting Content with RSA & AES Encryption' },
-  { id: 4, name: 'Uploading to IPFS' },
+  { id: 2, name: 'Uploading to Storage Bucket' },
 ];
 
-const pinataEndpoint = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
+// EC2 server endpoint
+const storageServerEndpoint =
+  'http://ec2-44-200-196-16.compute-1.amazonaws.com:8000';
 const baseUrl = process.env.NEXT_PUBLIC_BACKEND_BASE_URL;
 
 const EncryptData: React.FC<EncryptDataProps> = ({
@@ -51,6 +60,7 @@ const EncryptData: React.FC<EncryptDataProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { address } = useAccount();
+  const { campaign } = useCampaignStore();
 
   const generateContributionId = (): string => {
     return `contribution_${Date.now()}_${crypto
@@ -62,7 +72,7 @@ const EncryptData: React.FC<EncryptDataProps> = ({
     if (
       !address ||
       !submissionData.aiVerificationResult ||
-      !submissionData.encryptionStatus?.ipfsHash
+      !submissionData.encryptionStatus?.fileUrl
     ) {
       toast.error('Missing required data for submission');
       return;
@@ -92,23 +102,39 @@ const EncryptData: React.FC<EncryptDataProps> = ({
 
       const contributionId = generateContributionId();
 
-      const payload = await submitContribution({
-        campaignId: campaignId as string,
-        dataUrl: submissionData.encryptionStatus.ipfsHash,
-        score: submissionData.aiVerificationResult.score,
-        contributionId,
+      const dataReference = submissionData.encryptionStatus.rootCID;
+      console.log(
+        'Using data reference for on-chain submission:',
+        dataReference
+      );
+
+      if (!window.ethereum) {
+        throw new Error(
+          'Ethereum provider not found. Please install a wallet.'
+        );
+      }
+
+      const walletClient = createWalletClient({
+        chain: baseSepolia,
+        transport: custom(window.ethereum),
       });
 
-      // const response = await signAndSubmitTransaction(payload);
-      // console.log('Transaction submitted:', response);
+      const result = await submitContributionOnChain({
+        campaignId: campaignId as string,
+        dataUrl: submissionData.encryptionStatus.fileUrl,
+        rootCID: dataReference,
+        score: submissionData.aiVerificationResult.score,
+        contributorAddress: address as `0x${string}`,
+        walletClient: walletClient,
+      });
 
-      // updateSubmissionData({
-      //   encryptionStatus: {
-      //     ...submissionData.encryptionStatus,
-      //     ipfsHash: submissionData.encryptionStatus.ipfsHash,
-      //     transactionHash: response.hash || response,
-      //   },
-      // });
+      console.log('Result:', result);
+
+      if (!result.success) {
+        throw new Error(
+          result.error || 'Failed to submit contribution on-chain'
+        );
+      }
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -117,8 +143,8 @@ const EncryptData: React.FC<EncryptDataProps> = ({
           onchain_contribution_id: contributionId,
           campaign_id: campaignId,
           contributor: address,
-          data_url: submissionData.encryptionStatus.ipfsHash,
-          // transaction_hash: response.hash || response,
+          data_url: dataReference, // Use RootCID if available
+          transaction_hash: result.txHash,
           quality_score: submissionData.aiVerificationResult.score,
           ai_verification_score: submissionData.aiVerificationResult.score,
           reputation_score: reputationScore,
@@ -155,7 +181,7 @@ const EncryptData: React.FC<EncryptDataProps> = ({
     }
   };
 
-  const encryptAndUpload = useCallback(async () => {
+  const uploadFile = useCallback(async () => {
     if (!submissionData.file || isProcessing) {
       return;
     }
@@ -163,95 +189,137 @@ const EncryptData: React.FC<EncryptDataProps> = ({
     setIsProcessing(true);
 
     try {
-      // Step 1: Prepare data
       setCurrentStep(1);
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Step 2: Fetch public key from API
+      const bucketName = campaign?.bucket_name || 'fake_news_detection';
+
+      if (!bucketName) {
+        throw new Error('Bucket name not found in campaign data');
+      }
+
       setCurrentStep(2);
-      const campaignId = router.query.id || router.asPath.split('/').pop();
-      if (!campaignId) {
-        throw new Error('Campaign ID not found');
-      }
 
-      console.log('campaignId', campaignId);
+      // Create a unique file name with timestamp to prevent collisions
+      const timestamp = Date.now();
+      const fileExtension = submissionData.file.name.split('.').pop();
+      const uniqueFileName = `${submissionData.name.replace(
+        /\s+/g,
+        '_'
+      )}_${timestamp}.${fileExtension}`;
 
-      const publicKeyResponse = await axios.get(
-        '/api/submission/fetch-public-key',
-        {
-          params: { campaignId },
-        }
-      );
-
-      if (!publicKeyResponse.data.publicKey?.hex) {
-        throw new Error('Invalid public key format received');
-      }
-
-      // Convert hex string to Uint8Array
-      const hexString = publicKeyResponse.data.publicKey.hex;
-      console.log('Received public key hex:', hexString);
-      const campaignPublicKey = HexString.ensure(hexString).toUint8Array();
-
-      // Step 3: Encrypt the file
-      setCurrentStep(3);
-      const encryptedData = await encryptFile(
-        submissionData.file,
-        campaignPublicKey
-      );
-
-      // Step 4: Upload to IPFS using Pinata
-      setCurrentStep(4);
-
-      // Create a Blob from the encrypted data
-      const encryptedBlob = new Blob([encryptedData], {
-        type: 'application/octet-stream',
+      const fileToUpload = new File([submissionData.file], uniqueFileName, {
+        type: submissionData.file.type,
       });
-
-      // Create a File object from the Blob
-      const encryptedFile = new File(
-        [encryptedBlob],
-        `${submissionData.name}_encrypted`,
-        {
-          type: 'application/octet-stream',
-        }
-      );
 
       const formData = new FormData();
-      formData.append('file', encryptedFile);
+      formData.append('file', fileToUpload);
 
-      const pinataResponse = await axios.post(pinataEndpoint, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          pinata_api_key: process.env.NEXT_PUBLIC_PINATA_API_KEY!,
-          pinata_secret_api_key: process.env.NEXT_PUBLIC_PINATA_SECRET_API_KEY!,
-        },
-      });
+      console.log('Uploading file:', uniqueFileName);
+      console.log('To bucket:', bucketName);
 
-      if (!pinataResponse.data.IpfsHash) {
-        throw new Error('Failed to upload to IPFS');
+      try {
+        await axios.get(`${storageServerEndpoint}/buckets/${bucketName}`);
+      } catch (bucketError) {
+        console.log('Bucket might not exist, trying to create it');
+        try {
+          await axios.post(`${storageServerEndpoint}/buckets`, { bucketName });
+          console.log('Bucket created successfully');
+        } catch (createBucketError) {
+          console.warn(
+            'Could not create bucket, might already exist:',
+            createBucketError
+          );
+        }
       }
+
+      let uploadResponse;
+      try {
+        uploadResponse = await axios.post(
+          `${storageServerEndpoint}/buckets/${bucketName}/files`,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+            timeout: 30000, // 30 seconds timeout
+          }
+        );
+        console.log('Upload response:', uploadResponse.data);
+      } catch (uploadErr) {
+        console.error('Upload error details:', uploadErr);
+
+        if (uploadErr.response?.data?.error?.includes('FileFullyUploaded')) {
+          console.log(
+            'File was already uploaded or has a duplicate name, using the filename we attempted to upload'
+          );
+          uploadResponse = {
+            data: {
+              success: true,
+              file_name: uniqueFileName,
+            },
+          };
+        } else {
+          throw uploadErr;
+        }
+      }
+
+      if (
+        !uploadResponse?.data?.file_name &&
+        !uploadResponse?.data?.success &&
+        !uploadResponse?.data?.data
+      ) {
+        throw new Error(
+          'Failed to upload file to storage bucket: No file_name or data returned'
+        );
+      }
+
+      let uploadedFileName = uniqueFileName;
+      let rootCID = '';
+
+      if (uploadResponse.data.file_name) {
+        uploadedFileName = uploadResponse.data.file_name;
+      } else if (uploadResponse.data.data && uploadResponse.data.data.Name) {
+        uploadedFileName = uploadResponse.data.data.Name;
+      }
+
+      if (uploadResponse.data.data && uploadResponse.data.data.RootCID) {
+        rootCID = uploadResponse.data.data.RootCID;
+        console.log('File RootCID:', rootCID);
+      }
+
+      const fileUrl = `${storageServerEndpoint}/buckets/${bucketName}/files/${uploadedFileName}`;
+
+      console.log('File uploaded successfully:', fileUrl);
 
       setIsComplete(true);
       updateSubmissionData({
         encryptionStatus: {
           status: 'success',
-          ipfsHash: pinataResponse.data.IpfsHash,
-          encryptedData: encryptedData,
+          fileUrl: fileUrl,
+          fileName: uploadedFileName,
+          bucketName: bucketName,
+          rootCID: rootCID,
         },
       });
     } catch (err) {
-      console.error('Encryption error:', err);
-      setError(err instanceof Error ? err.message : 'Encryption failed');
+      console.error('Upload error:', err);
+      let errorMessage = err instanceof Error ? err.message : 'Upload failed';
+
+      if (err.response?.data?.error) {
+        errorMessage = `Upload failed: ${err.response.data.error}`;
+      }
+
+      setError(errorMessage);
     } finally {
       setIsProcessing(false);
     }
   }, [
     submissionData.file,
     submissionData.name,
-    updateSubmissionData,
-    router.query.id,
-    router.asPath,
     isProcessing,
+    campaign,
+    updateSubmissionData,
   ]);
 
   useEffect(() => {
@@ -264,13 +332,13 @@ const EncryptData: React.FC<EncryptDataProps> = ({
       !error &&
       !isProcessing
     ) {
-      encryptAndUpload();
+      uploadFile();
     }
 
     return () => {
       mounted = false;
     };
-  }, [submissionData.file, encryptAndUpload, isComplete, error, isProcessing]);
+  }, [submissionData.file, uploadFile, isComplete, error, isProcessing]);
 
   if (error) {
     return (
@@ -280,7 +348,7 @@ const EncryptData: React.FC<EncryptDataProps> = ({
             <ExclamationTriangleIcon className="w-10 h-10 text-red-500" />
           </div>
           <h3 className="text-lg font-medium text-[#f5f5faf4] mb-2">
-            Encryption Failed
+            Upload Failed
           </h3>
           <p className="text-[#f5f5fa7a]">{error}</p>
         </div>
@@ -303,23 +371,23 @@ const EncryptData: React.FC<EncryptDataProps> = ({
       {!isComplete ? (
         <div className="text-center space-y-6">
           <div className="relative mx-auto w-24 h-24">
-            <LockClosedIcon className="w-24 h-24 text-[#a855f7] animate-pulse" />
+            <CloudArrowUpIcon className="w-24 h-24 text-[#a855f7] animate-pulse" />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-16 h-16 border-4 border-[#a855f7] border-t-transparent rounded-full animate-spin" />
             </div>
           </div>
           <div>
             <h3 className="text-lg font-medium text-[#f5f5faf4] mb-2">
-              Encrypting Your Data
+              Uploading Your Data
             </h3>
             <p className="text-[#f5f5fa7a]">
-              Securing your data before uploading to IPFS
+              Uploading your data securely to Akave
             </p>
           </div>
 
           {/* Steps Progress */}
           <div className="max-w-sm mx-auto space-y-3">
-            {encryptionSteps.map((step) => (
+            {uploadSteps.map((step) => (
               <div key={step.id} className="flex items-center space-x-3">
                 <div
                   className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center
@@ -355,17 +423,26 @@ const EncryptData: React.FC<EncryptDataProps> = ({
               <CheckCircleIcon className="w-10 h-10 text-[#22c55e]" />
             </div>
             <h3 className="text-lg font-medium text-[#f5f5faf4] mb-2">
-              Encryption Complete
+              Upload Complete
             </h3>
             <p className="text-[#f5f5fa7a] mb-6">
-              Your data has been encrypted and uploaded to IPFS
+              Your data has been successfully uploaded to Akave
             </p>
             <div className="flex flex-col gap-4">
               <div className="bg-[#f5f5fa0a] rounded-xl p-4">
-                <p className="text-sm text-[#f5f5fa7a] mb-2">IPFS Hash</p>
+                <p className="text-sm text-[#f5f5fa7a] mb-2">File Location</p>
                 <p className="font-mono text-sm text-[#f5f5faf4]">
-                  {submissionData.encryptionStatus?.ipfsHash}
+                  {submissionData.encryptionStatus?.fileName} in bucket{' '}
+                  {submissionData.encryptionStatus?.bucketName}
                 </p>
+                {submissionData.encryptionStatus?.rootCID && (
+                  <div className="mt-2">
+                    <p className="text-sm text-[#f5f5fa7a] mb-1">Root CID</p>
+                    <p className="font-mono text-sm text-[#f5f5faf4] break-all">
+                      {submissionData.encryptionStatus?.rootCID}
+                    </p>
+                  </div>
+                )}
               </div>
               <button
                 type="button"

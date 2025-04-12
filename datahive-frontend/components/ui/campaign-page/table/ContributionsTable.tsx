@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import ContributionsTableRow from './ContributionsTableRow';
 import { HiFilter } from 'react-icons/hi';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueries, QueryClient } from '@tanstack/react-query';
 
 interface TableContribution {
   id: string;
@@ -38,24 +38,60 @@ interface Contribution {
 }
 
 interface ApiResponse {
-  contributions: Contribution[];
-  statistics: {
-    totalContributions: number;
-    verifiedContributions: number;
-    rewardsReleased: number;
-    verificationRate: number;
-    rewardRate: number;
+  success: boolean;
+  message?: string;
+  campaign?: {
+    id: string;
+    campaignIdString: string;
+    title: string;
+    creator: string;
+    description: string;
+    unitPrice: string;
+    currentSubmissions: string;
+    maxSubmissions: string;
+    remainingBudget: string;
+    totalBudget: string;
+    rewardThreshold: string;
+    active: boolean;
   };
-  additionalInfo: {
-    campaignDetails: {
-      unitPrice: number;
-      // ... other fields if needed
-    } | null;
-    escrowInfo: {
-      unitReward: number;
-      // ... other fields if needed
-    } | null;
-  } | null;
+  contributions?: Array<{
+    id: string;
+    contributor: string;
+    encryptedDataHash: string;
+    metadataURI: string;
+    score: number;
+    qualified: boolean;
+    timestamp: string;
+    formattedTime: string;
+  }>;
+  stats?: {
+    totalContributions: number;
+    qualifiedCount: number;
+    qualifiedPercentage: string;
+    averageScore: string;
+    thresholdScore: string;
+    uniqueContributors: number;
+  };
+  error?: string;
+  errorCode?: string;
+}
+
+interface ReputationResponse {
+  success: boolean;
+  message?: string;
+  reputation?: {
+    address: string;
+    reputation_score: string;
+    contribution_count: string;
+    successful_payments: string;
+    campaign_contribution_count: string;
+    has_store: boolean;
+    badge_count: string;
+    badges: any[];
+    next_badges: any[];
+  };
+  error?: string;
+  errorCode?: string;
 }
 
 interface ContributionsTableProps {
@@ -82,7 +118,7 @@ const ContributionsTable: React.FC<ContributionsTableProps> = ({
     queryFn: async () => {
       if (!id) return null;
       const response = await fetch(
-        `/api/campaign/getCampaignContributions?campaignId=${id}`
+        `/api/campaign/get_campaign_contributions?campaignId=${id}`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch contributions');
@@ -107,19 +143,60 @@ const ContributionsTable: React.FC<ContributionsTableProps> = ({
 
         const matchesStatus =
           statusFilter === 'All' ||
-          (statusFilter === 'Verified' && contribution.is_verified) ||
-          (statusFilter === 'Pending' && !contribution.is_verified);
+          (statusFilter === 'Verified' && contribution.qualified) ||
+          (statusFilter === 'Pending' && !contribution.qualified);
 
         return matchesSearch && matchesStatus;
       }) || [],
     [data?.contributions, searchTerm, statusFilter]
   );
 
+  // Get unique contributor addresses for reputation fetching
+  const uniqueContributors = useMemo(() => {
+    const addresses = new Set<string>();
+    filteredData.forEach((contribution) => {
+      addresses.add(contribution.contributor);
+    });
+    return Array.from(addresses);
+  }, [filteredData]);
+
+  // Fetch reputation data for all contributors
+  const reputationQueries = useQueries({
+    queries: uniqueContributors.map((address) => ({
+      queryKey: ['reputation', address],
+      queryFn: async () => {
+        const response = await fetch(
+          `/api/campaign/get_user_reputation?address=${address}`
+        );
+        if (!response.ok) {
+          throw new Error('Failed to fetch reputation');
+        }
+        return response.json() as Promise<ReputationResponse>;
+      },
+      staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+      cacheTime: 10 * 60 * 1000, // Cache for 10 minutes
+    })),
+  });
+
+  // Create a map of address to reputation data
+  const reputationMap = useMemo(() => {
+    const map = new Map<string, number>();
+    reputationQueries.forEach((query) => {
+      if (query.data?.success && query.data.reputation) {
+        map.set(
+          query.data.reputation.address,
+          parseInt(query.data.reputation.reputation_score) || 0
+        );
+      }
+    });
+    return map;
+  }, [reputationQueries]);
+
   // Memoize the transformed data
   const transformedData = useMemo(
     () =>
       filteredData.map((contribution) => ({
-        dataUrl: contribution.data_url,
+        dataUrl: contribution.metadataURI,
         creator: {
           name: `${contribution.contributor.slice(
             0,
@@ -159,34 +236,34 @@ const ContributionsTable: React.FC<ContributionsTableProps> = ({
   return (
     <div className="space-y-4 mt-5">
       {/* Stats Summary */}
-      {/* {data?.statistics && (
+      {data?.stats && (
         <div className="grid grid-cols-4 gap-4 mb-6">
           <div className="p-4 rounded-lg bg-[#f5f5fa0a]">
             <p className="text-[#f5f5fa7a] text-xs">Total Contributions</p>
             <p className="text-[#f5f5faf4] text-xl font-semibold">
-              {data.statistics.totalContributions}
+              {data.stats.totalContributions}
             </p>
           </div>
           <div className="p-4 rounded-lg bg-[#f5f5fa0a]">
             <p className="text-[#f5f5fa7a] text-xs">Verified</p>
             <p className="text-[#f5f5faf4] text-xl font-semibold">
-              {data.statistics.verifiedContributions}
+              {data.stats.qualifiedCount}
             </p>
           </div>
           <div className="p-4 rounded-lg bg-[#f5f5fa0a]">
             <p className="text-[#f5f5fa7a] text-xs">Verification Rate</p>
             <p className="text-[#f5f5faf4] text-xl font-semibold">
-              {data.statistics.verificationRate.toFixed(1)}%
+              {data.stats.qualifiedPercentage}%
             </p>
           </div>
           <div className="p-4 rounded-lg bg-[#f5f5fa0a]">
-            <p className="text-[#f5f5fa7a] text-xs">Rewards Released</p>
+            <p className="text-[#f5f5fa7a] text-xs">Unique Contributors</p>
             <p className="text-[#f5f5faf4] text-xl font-semibold">
-              {data.statistics.rewardsReleased}
+              {data.stats.uniqueContributors}
             </p>
           </div>
         </div>
-      )} */}
+      )}
 
       {/* Table */}
       <div className="rounded-xl border border-[#f5f5fa14] overflow-hidden">
@@ -201,7 +278,7 @@ const ContributionsTable: React.FC<ContributionsTableProps> = ({
               </th>
               <th className="text-left py-4 px-6 text-[#87858F] text-xs font-medium">
                 <div className="flex items-center gap-1">
-                  <span>Verifier Rep.</span>
+                  <span>Agent Verifier Rep.</span>
                   <HiFilter className="w-3 h-3" />
                 </div>
               </th>
@@ -225,10 +302,10 @@ const ContributionsTable: React.FC<ContributionsTableProps> = ({
           <tbody className="divide-y divide-[#f5f5fa14]">
             {filteredData.map((contribution) => (
               <ContributionsTableRow
-                key={contribution.contribution_id}
+                key={contribution.id}
                 contribution={
                   {
-                    id: contribution.contribution_id,
+                    id: contribution.id,
                     creator: {
                       avatar:
                         'https://pbs.twimg.com/profile_images/1744477796301496320/z7AIB7_W_400x400.jpg',
@@ -237,23 +314,23 @@ const ContributionsTable: React.FC<ContributionsTableProps> = ({
                         6
                       )}...${contribution.contributor.slice(-4)}`,
                       address: contribution.contributor,
-                      reputation: contribution.contributor_reputation || 0,
+                      reputation:
+                        reputationMap.get(contribution.contributor) || 0,
                     },
-                    verificationStatus: contribution.is_verified
+                    verificationStatus: contribution.qualified
                       ? 'Verified'
                       : 'Pending',
-                    verifierReputation:
-                      contribution.verification_scores?.verifier_reputation ||
-                      0,
-                    qualityScore:
-                      contribution.verification_scores?.quality_score || 0,
-                    rewardStatus: contribution.reward_released
+                    verifierReputation: 0, // This data isn't available in the API
+                    qualityScore: contribution.score,
+                    rewardStatus: contribution.qualified
                       ? 'Released'
                       : 'Pending',
-                    dataUrl: contribution.data_url,
-                    submittedAt: contribution.timestamp,
-                    rewardAmount:
-                      data?.additionalInfo?.escrowInfo?.unitReward || 0,
+                    dataUrl: contribution.metadataURI,
+                    submittedAt:
+                      contribution.formattedTime || contribution.timestamp,
+                    rewardAmount: data?.campaign?.unitPrice
+                      ? parseFloat(data.campaign.unitPrice)
+                      : 0,
                   } as TableContribution
                 }
               />
