@@ -14,7 +14,8 @@ class CampaignCreate(BaseModel):
     total_budget: float
     min_data_count: int
     max_data_count: int
-    expiration: int 
+    expiration: int
+    is_csv_only_campaign: bool
     metadata_uri: str
     transaction_hash: str
     platform_fee: float
@@ -22,6 +23,8 @@ class CampaignCreate(BaseModel):
 class CampaignResponse(CampaignCreate):
     campaign_id: str
     is_active: bool
+    is_csv_only_campaign: bool
+    # is_premium: bool
     bucket_name: Optional[str] = None  # Now optional
     current_contributions: int
     unique_contributions_count: int

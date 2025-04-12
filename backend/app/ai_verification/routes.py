@@ -5,7 +5,7 @@ import mimetypes
 import logging
 import asyncio
 
-from fastapi import APIRouter, HTTPException, Depends, Form, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, Form, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from app.campaigns.models import Campaign
 from app.core.database import get_session
@@ -199,14 +199,14 @@ def list_campaign_bucket_files(
 @router.get("/akave/{onchain_campaign_id}/download/{file_name}", summary="Download a file from the campaign's bucket")
 def download_campaign_file(
     onchain_campaign_id: str,
-    file_name: str = Path(..., description="Name of the file to download"),
+    filename: str = Query(..., description="Name of the file to download"),
     db: Session = Depends(get_session)
 ):
     """
     Download a file from the Akave bucket associated with a given campaign.
     The file is saved locally and its path is returned.
     """
-    logger.info(f"Downloading file '{file_name}' for campaign: {onchain_campaign_id}")
+    logger.info(f"Downloading file '{filename}' for campaign: {onchain_campaign_id}")
     campaign = db.query(Campaign).filter(Campaign.onchain_campaign_id == onchain_campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -214,7 +214,7 @@ def download_campaign_file(
         akave_api = AkaveLinkAPI()
         # Use a temporary directory or your desired output directory
         output_dir = "/tmp"  
-        downloaded_file = akave_api.download_file(str(campaign.bucket_name), file_name, output_dir)
+        downloaded_file = akave_api.download_file(str(campaign.bucket_name), filename, output_dir)
         logger.info(f"File downloaded successfully: {downloaded_file}")
         return {"downloaded_file": downloaded_file}
     except Exception as e:
