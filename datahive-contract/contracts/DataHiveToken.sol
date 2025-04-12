@@ -14,8 +14,18 @@ contract DataHiveToken is ERC20, ERC20Burnable, Pausable, Ownable {
     // Max supply cap (100 million tokens with 18 decimals)
     uint256 public constant MAX_SUPPLY = 100_000_000 * 10**18;
     
+    // Public mint amount (100 tokens with 18 decimals)
+    uint256 public constant PUBLIC_MINT_AMOUNT = 100 * 10**18;
+    
+    // Cooldown period for public minting (24 hours)
+    uint256 public constant MINT_COOLDOWN = 24 hours;
+    
+    // Mapping to track last mint timestamp for each address
+    mapping(address => uint256) public lastMintTimestamp;
+    
     // Events
     event Minted(address indexed to, uint256 amount);
+    event PublicMinted(address indexed to, uint256 amount);
     event BatchTransferred(address indexed from, address[] to, uint256[] amounts);
 
     /**
@@ -49,7 +59,20 @@ contract DataHiveToken is ERC20, ERC20Burnable, Pausable, Ownable {
     }
 
     /**
-     * @dev Mints new tokens to a specified address
+     * @dev Allows anyone to mint 100 DHT tokens with a 24-hour cooldown
+     */
+    function publicMint() public {
+        require(lastMintTimestamp[msg.sender] + MINT_COOLDOWN < block.timestamp, "Must wait 24 hours between mints");
+        require(totalSupply() + PUBLIC_MINT_AMOUNT <= MAX_SUPPLY, "Mint would exceed max supply");
+        
+        _mint(msg.sender, PUBLIC_MINT_AMOUNT);
+        lastMintTimestamp[msg.sender] = block.timestamp;
+        
+        emit PublicMinted(msg.sender, PUBLIC_MINT_AMOUNT);
+    }
+
+    /**
+     * @dev Mints new tokens to a specified address (owner only)
      * @param to Address receiving the new tokens
      * @param amount Amount of tokens to mint (in wei)
      */

@@ -5,6 +5,7 @@ import { HiShieldCheck, HiClock, HiExclamation } from 'react-icons/hi';
 import Avvvatars from 'avvvatars-react';
 import { octasToMove } from '@/utils/aptos/octasToMove';
 import DecryptSubmissionModal from '@/components/modals/DecryptSubmissionModal';
+import useCampaignStore from '@/helpers/store/useCampaignStore';
 
 interface Creator {
   avatar: string;
@@ -31,7 +32,7 @@ interface ContributionsTableRowProps {
 const ContributionsTableRow: React.FC<ContributionsTableRowProps> = React.memo(
   ({ contribution }) => {
     const [isDecryptModalOpen, setIsDecryptModalOpen] = useState(false);
-
+    const { campaign } = useCampaignStore();
     const getStatusIcon = (status: string) => {
       switch (status) {
         case 'Verified':
@@ -155,8 +156,8 @@ const ContributionsTableRow: React.FC<ContributionsTableRowProps> = React.memo(
                       : 'text-red-400'
                   }`}
                 >
-                  {octasToMove(contribution.rewardAmount)}{' '}
-                  <span className="text-[10px]">MOVE</span>
+                  {contribution.rewardAmount}{' '}
+                  <span className="text-[10px]">DHT</span>
                 </span>
               </div>
               <span className="text-gray-400 text-xs">

@@ -21,6 +21,7 @@ export interface Campaign {
   total_budget: number;
   transaction_hash: string;
   unit_price: number;
+  bucket_name?: string;
 }
 
 interface CampaignState {

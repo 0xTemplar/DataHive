@@ -316,9 +316,9 @@ const UserLeaderboard = () => {
             </p>
             <div className="flex items-center justify-end gap-1 font-medium">
               <span className="text-[#f5f5faf4]">
-                {octasToMove(user.totalAmount)}
+                {(user.totalAmount)}
               </span>
-              <span className="text-[#f5f5fa7a]">MOVE</span>
+              <span className="text-[#f5f5fa7a]">DHT</span>
             </div>
           </div>
 
