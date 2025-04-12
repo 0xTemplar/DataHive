@@ -10,6 +10,7 @@ class Campaign(Base):
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     bucket_name = Column(String, index=True)
+    workflow_bucket_name = Column(String, index=True, nullable=True)
     onchain_campaign_id = Column(String, index=True)
     creator_wallet_address = Column(String, index=True) 
     title = Column(String, index=True)
@@ -25,6 +26,7 @@ class Campaign(Base):
     metadata_uri = Column(String)
     transaction_hash = Column(String)
     platform_fee = Column(Float)
+    is_csv_only_campaign = Column(Boolean, default=False, index=True)
     is_premium = Column(Boolean, default=False, index=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
