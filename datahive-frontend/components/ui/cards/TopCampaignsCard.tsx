@@ -100,7 +100,7 @@ const TopCampaignsCard: React.FC<TopCampaignsCardProps> = ({
                 <span className="text-[#f5f5fa7a] text-xs">Total Spent</span>
               </div>
               <span className="text-white text-sm font-medium">
-                {formatAmount(totalAmountSpent)} MOVE
+                {(totalAmountSpent)} DHT
               </span>
             </div>
             <div className="flex flex-col gap-1">
