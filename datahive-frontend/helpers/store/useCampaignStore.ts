@@ -22,6 +22,7 @@ export interface Campaign {
   transaction_hash: string;
   unit_price: number;
   bucket_name?: string;
+  is_csv_only_campaign?: boolean;
 }
 
 interface CampaignState {
