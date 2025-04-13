@@ -17,6 +17,10 @@
   scroll-behavior: smooth;
 }
 
+/* nextjs-portal {
+  display: none;
+} */
+
 @layer base {
   body {
     @apply bg-[#0f0f17] font-[var(--font-sora)];
