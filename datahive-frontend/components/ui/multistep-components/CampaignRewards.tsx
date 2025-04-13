@@ -1,5 +1,10 @@
 import React from 'react';
-import { HiCurrencyDollar, HiScale, HiChartBar } from 'react-icons/hi';
+import {
+  HiCurrencyDollar,
+  HiScale,
+  HiChartBar,
+  HiDocumentText,
+} from 'react-icons/hi';
 import { useCampaign } from '@/context/CampaignContext';
 
 interface CampaignRewardsData {
@@ -7,6 +12,7 @@ interface CampaignRewardsData {
   totalBudget: string;
   minDataCount: string;
   maxDataCount: string;
+  isCsvOnlyCampaign: boolean;
 }
 
 const CampaignRewards = () => {
@@ -14,8 +20,10 @@ const CampaignRewards = () => {
   const { rewards } = campaignData;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+    const { name, value, type, checked } = e.target;
+    if (type === 'checkbox') {
+      updateCampaignRewards({ [name]: checked });
+    } else if (value === '' || /^\d*\.?\d*$/.test(value)) {
       updateCampaignRewards({ [name]: value });
     }
   };
@@ -173,6 +181,40 @@ const CampaignRewards = () => {
                 {errors.rewards.unitPrice}
               </p>
             )}
+          </div>
+
+          {/* CSV Only Campaign Toggle */}
+          <div className="bg-[#f5f5fa08] p-6 rounded-xl border border-[#f5f5fa14]">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#6366f1] to-[#a855f7]">
+                <HiDocumentText className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-lg font-semibold text-[#f5f5faf4]">
+                Submission Format
+              </h3>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-[#f5f5faf4]">
+                  CSV Only Campaign
+                </p>
+                <p className="text-xs text-[#f5f5fa7a] mt-1">
+                  Limit submissions to CSV files only (recommended for
+                  structured data)
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="isCsvOnlyCampaign"
+                  checked={rewards.isCsvOnlyCampaign || false}
+                  onChange={handleChange}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-[#f5f5fa14] peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#a855f7]/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-[#6366f1] peer-checked:to-[#a855f7]"></div>
+              </label>
+            </div>
           </div>
         </div>
       </form>

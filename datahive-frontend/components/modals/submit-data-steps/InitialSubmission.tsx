@@ -24,6 +24,14 @@ const InitialSubmission: React.FC<InitialSubmissionProps> = ({
   const getAcceptedFileTypes = () => {
     if (!campaign) return {};
 
+    // If campaign is CSV-only, only accept CSV files
+    if (campaign.is_csv_only_campaign) {
+      return {
+        'text/csv': ['.csv'],
+      };
+    }
+
+    // Otherwise use existing file type rules based on campaign type
     return campaign.campaign_type === 'Text'
       ? {
           'application/json': ['.json'],
@@ -47,6 +55,12 @@ const InitialSubmission: React.FC<InitialSubmissionProps> = ({
   const getFileTypeMessage = () => {
     if (!campaign) return '';
 
+    // If campaign is CSV-only, customize the message
+    if (campaign.is_csv_only_campaign) {
+      return 'This campaign only accepts CSV files';
+    }
+
+    // Otherwise use existing message based on campaign type
     return campaign.campaign_type === 'Text'
       ? 'Supports JSON, CSV, XLSX, PDF, TXT, DOC, and DOCX files'
       : 'Supports JPG, JPEG, PNG, and WEBP files';
@@ -61,11 +75,12 @@ const InitialSubmission: React.FC<InitialSubmissionProps> = ({
     [updateSubmissionData]
   );
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    maxFiles: 1,
-    accept: getAcceptedFileTypes(),
-  });
+  const { getRootProps, getInputProps, isDragActive, fileRejections } =
+    useDropzone({
+      onDrop,
+      maxFiles: 1,
+      accept: getAcceptedFileTypes(),
+    });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,6 +104,11 @@ const InitialSubmission: React.FC<InitialSubmissionProps> = ({
                   isDragActive
                     ? 'border-[#a855f7] bg-[#a855f7]/10'
                     : 'border-[#f5f5fa14] hover:border-[#a855f7] hover:bg-[#f5f5fa0a]'
+                }
+                ${
+                  fileRejections.length > 0
+                    ? 'border-red-500 bg-red-500/10'
+                    : ''
                 }`}
             >
               <input {...getInputProps()} />
@@ -110,7 +130,19 @@ const InitialSubmission: React.FC<InitialSubmissionProps> = ({
                   <p className="text-[#f5f5fa7a] text-sm">
                     {getFileTypeMessage()}
                   </p>
+                  {campaign?.is_csv_only_campaign && (
+                    <p className="text-yellow-400 text-sm font-medium mt-2">
+                      Note: This campaign only accepts CSV files
+                    </p>
+                  )}
                 </div>
+              )}
+              {fileRejections.length > 0 && (
+                <p className="text-red-500 text-sm mt-2">
+                  {campaign?.is_csv_only_campaign
+                    ? 'Only CSV files are accepted for this campaign'
+                    : 'File type not supported'}
+                </p>
               )}
             </div>
           </div>

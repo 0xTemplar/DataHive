@@ -269,6 +269,8 @@ const CampaignStepContent = () => {
               transaction_hash: tx,
               platform_fee: Number(contractParams.platformFee),
               creator_wallet_address: address,
+              is_csv_only_campaign:
+                campaignData.rewards.isCsvOnlyCampaign === true ? true : false,
             };
 
             const backendResponse = await axios.post(

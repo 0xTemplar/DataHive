@@ -28,6 +28,7 @@ interface Campaign {
   transaction_hash: string;
   unit_price: number;
   unique_contributions_count: number;
+  is_csv_only_campaign?: boolean;
 }
 
 const Tabs: React.FC = () => {
@@ -59,15 +60,23 @@ const Tabs: React.FC = () => {
   });
 
   const isOwner = address === campaignData?.creator_wallet_address;
+  const isCsvOnlyCampaign = campaignData?.is_csv_only_campaign === true;
 
   useEffect(() => {
     if (
       !isOwner &&
-      (activeTab === 'contributions' || activeTab === 'analytics')
+      (activeTab === 'contributions' ||
+        activeTab === 'analytics' ||
+        activeTab === 'training')
     ) {
       setActiveTab('overview');
     }
-  }, [isOwner, activeTab]);
+
+    // Reset to overview if trying to access training tab on a non-CSV campaign
+    if (activeTab === 'training' && !isCsvOnlyCampaign) {
+      setActiveTab('overview');
+    }
+  }, [isOwner, activeTab, isCsvOnlyCampaign]);
 
   // Show loading skeleton on initial load or when refetching data
   if (isLoading || (isFetching && !campaignData)) {
@@ -198,16 +207,22 @@ const Tabs: React.FC = () => {
                 Analytics
               </button>
 
-              <button
-                onClick={() => setActiveTab('training')}
-                className={`pb-4 text-sm font-medium relative ${
-                  activeTab === 'training'
-                    ? 'text-white after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-gradient-to-r after:from-[#6366f1] after:to-[#a855f7]'
-                    : 'text-gray-400 hover:text-gray-300'
-                }`}
-              >
-                Training
-              </button>
+              {/* Only show Training tab for CSV-only campaigns */}
+              {isCsvOnlyCampaign && (
+                <button
+                  onClick={() => setActiveTab('training')}
+                  className={`pb-4 text-sm font-medium relative flex items-center ${
+                    activeTab === 'training'
+                      ? 'text-white after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-gradient-to-r after:from-[#6366f1] after:to-[#a855f7]'
+                      : 'text-gray-400 hover:text-gray-300'
+                  }`}
+                >
+                  Training
+                  <span className="ml-2 bg-gradient-to-r from-[#6366f1]/20 to-[#a855f7]/20 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#a855f7]/30 text-[#a855f7]">
+                    CSV Only
+                  </span>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -234,7 +249,7 @@ const Tabs: React.FC = () => {
             <Analytics campaign={campaignData} isLoading={false} />
           </div>
         )}
-        {isOwner && activeTab === 'training' && (
+        {isOwner && isCsvOnlyCampaign && activeTab === 'training' && (
           <div>
             <Training campaign={campaignData} isLoading={false} />
           </div>
