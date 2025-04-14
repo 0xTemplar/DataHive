@@ -144,7 +144,7 @@ chain = workflow.compile()
 
 ### Upcoming Standard Library for Lilypad
 
-DataHive is currently developing a comprehensive **Python Standard Library** to streamline integration with all Lilypad modules, simplifying model management, inference operations, and multi-agent workflow implementations for the broader developer community.
+DataHive is currently developing a comprehensive [**Python Standard Library**](https://github.com/0xTemplar/lilypad-python) to streamline integration with all Lilypad modules, simplifying model management, inference operations, and multi-agent workflow implementations for the broader developer community.
 
 This library aims to standardize best practices, accelerate development cycles, and foster easy adoption of AI-powered workflows.
 
