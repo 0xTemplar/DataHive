@@ -149,7 +149,7 @@ This library aims to standardize best practices, accelerate development cycles, 
 
 These integrations significantly enhance DataHive’s capability to provide secure, efficient, and trustworthy AI dataset verification and management, strengthening its role as a leading decentralized data marketplace.
 
-### Smart Contracts
+## Smart Contracts
 
 The system consists of several interconnected smart contracts:
 
