@@ -217,10 +217,8 @@ The system consists of several interconnected smart contracts:
 
 - Python 3.8+
 - Node.js 14+
-- Docker (optional, for local development)
-- A Filecoin wallet with some FIL for storage
 
-### Installation
+## Frontend Setup
 
 1. **Clone the repository**
    ```bash
@@ -228,31 +226,116 @@ The system consists of several interconnected smart contracts:
    cd datahive
    ```
 
-2. **Backend setup**
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   ```
-
-3. **Frontend setup**
+3. **Frontend Setup**
    ```bash
    cd frontend
    npm install
    ```
 
-4. **Environment variables**
-   Copy `.env.example` to `.env` and fill in your keys for:
-   - `FILECOIN_API_KEY`
-   - `AKAVE_API_URL` & `AKAVE_API_KEY`
-   - `LILYPAD_API_KEY`
-   - `DATABASE_URL`
+## Backend Setup
 
-5. **Run locally**
-   ```bash
-   # In backend/
+```bash
+   cd backend
+   pip install -r requirements.txt
+   poetry shell
+   eval $(poetry env activate)
    uvicorn app.main:app --reload
-
-   # In frontend/
-   npm run dev
    ```
+
+
+## Smart Contract Setup
+
+### Prerequisites
+
+- Node.js (v16+)
+- npm or yarn
+- Hardhat
+
+### Installation
+
+1. Clone the repository:
+
+   ```
+   git clone https://github.com/yourusername/datahive-contract.git
+   cd datahive-contract
+   ```
+
+2. Install dependencies:
+
+   ```
+   npm install
+   ```
+
+3. Create a `.env` file with the following variables:
+
+   ```
+   # Private key for deploying contracts (replace with your own secure key)
+   PRIVATE_KEY=your_private_key_here
+
+   # API Keys for contract verification
+   BASESCAN_API_KEY=your_basescan_api_key
+   ETHERSCAN_API_KEY=your_etherscan_api_key
+   FILSCAN_API_KEY=your_filscan_api_key
+
+   # Optional: RPC URLs (if you want to use custom RPC providers)
+   # BASE_SEPOLIA_RPC_URL=
+   # FILECOIN_CALIBRATION_RPC_URL=
+   # FILECOIN_MAINNET_RPC_URL=
+   # SEPOLIA_RPC_URL=
+   ```
+
+### Compilation
+
+```
+npx hardhat compile
+```
+
+### Deployment
+
+The project uses Hardhat Ignition for deployments. This ensures proper contract initialization and linking.
+
+1. Deploy to local network:
+
+   ```
+   npx hardhat node
+   npx hardhat ignition deploy ignition/modules/DeployWithToken.ts --network localhost
+   ```
+
+2. Deploy to Base Sepolia testnet:
+
+   ```
+   npx hardhat ignition deploy ignition/modules/DeployWithToken.ts --network baseSepolia --reset
+   ```
+
+   Supported networks:
+
+   - baseSepolia
+   - sepolia
+   - filecoin-calibration
+   - filecoin-mainnet
+
+### Deployed Contracts
+
+Current deployment on Base Sepolia:
+
+- DataHiveToken: `0xd96893e48576098e00334B15cbb5f892244C2694`
+- Reputation: `0xc23BcFfc47Feb3F559b2bF10E54C12Ee71350429`
+- CampaignManager: `0x69594d9A60b34b7c98dd573f52f85E96aF80A856`
+- EscrowManager: `0x5f53083A5f176e9d100469bcf486876fc064534e`
+- ContributionManager: `0x016C8E5dc0aCD5271aCf2aAdf01BdDbE70a0c47A`
+
+## Contract Interactions
+
+1. Campaign creators deposit tokens and create campaigns with defined requirements
+2. Contributors submit data to campaigns with a verification score
+3. Qualified contributions receive immediate token rewards
+4. All interactions build reputation on the platform
+
+## Key Features
+
+- End-to-end encrypted data submissions
+- Quality-based reward thresholds
+- Immediate verification and rewards
+- Reputation and badge system
+
 
