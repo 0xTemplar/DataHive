@@ -14,9 +14,7 @@ DataHive offers a comprehensive set of features for both data contributors and c
 
 - **Text & Image Verification with AI & Vision Model** 🤖📸: Automated checks on text and image submissions using an **advanced multiagent AI workflow on Lilypad to dynamically select and combine the most appropriate models to ensure authenticity and accuracy**. The AI agents act as campaign verifiers.
 
-- **On‑demand Model Training**: Instantly spin up custom training pipelines using your campaign’s verified datasets, with Akave as decentralized hot retrieval layer (**via our AkaveLinkAPI**)
-
-- **Secure Dataset Storage**: Submit 
+- **On‑demand Model Training**: Instantly spin up custom training pipelines using your campaign’s verified datasets, with Akave as decentralized hot retrieval layer (**via our AkaveLinkAPI**) 
 
 - **Reputation System** 🌟: Build your onchain, tamper proof reputation as a contributor by collecting badges, earning higher quality scores, and unlocking higher-paying campaigns based on your submission history.
 
