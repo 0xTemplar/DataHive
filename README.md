@@ -11,19 +11,16 @@
 
 - [Overview](#overview)
 - [Features](#features)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Usage](#usage)
 - [Integration Documentation](#integration-documentation)
   - [Akave Integration](#akave-integration)
   - [Lilypad Integration](#lilypad-integration)
   - [Lilypad Multi-Agent Workflow (StateGraph)](#ai-multi-agent-workflow-stategraph)
   - [Upcoming Standard Library](#upcoming-standard-library-for-lilypad)
 - [Smart Contracts](#smart-contracts)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Usage](#usage)
 
 
 ## Overview
