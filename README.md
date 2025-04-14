@@ -1,14 +1,38 @@
 # DataHive
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/your-org/datahive/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/your-org/datahive/releases)
+
 
 **Unlock Data for AI with Filecoin. Contribute and Earn with DataHive** 🚀
 
 ---
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Usage](#usage)
+- [Integration Documentation](#integration-documentation)
+  - [Akave Integration](#akave-integration)
+  - [Lilypad Integration](#lilypad-integration)
+  - [Lilypad Multi-Agent Workflow (StateGraph)](#ai-multi-agent-workflow-stategraph)
+  - [Upcoming Standard Library](#upcoming-standard-library-for-lilypad)
+- [Smart Contracts](#smart-contracts)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
+
 
 ## Overview
 
 **DataHive** is a token-incentivized data marketplace that connects AI researchers, companies, and everyday data contributors. On DataHive, you can buy AI-ready data or sell your own for token rewards, all on a secure, decentralized platform. 
 
 DataHive was built  to foster the creation of AI-ready datasets and ensure contributors are fairly compensated for their valuable data. Whether you're an AI developer in need of data or a user willing to contribute, we provide the infrastructure for seamless data sharing and incentivization.
+
+## Features
 
 DataHive offers a comprehensive set of features for both data contributors and campaign creators:
 
@@ -31,14 +55,15 @@ DataHive offers a comprehensive set of features for both data contributors and c
 - **Bulk Data Export** 📦: Once your campaign is complete, easily export your verified dataset in bulk. **You can bulk export the data using your generated campaign RSA private key**, ensuring the data is ready for AI model training without additional processing.
   
 
-## Integration Documentation for DataHive
+## Integration Documentation
 
-### Akave Integration: Decentralized Storage for AI-ready Data
+### Akave Integration: 
+**Decentralized Storage for AI-ready Data**
 
 **Overview**  
 - Akave acts as storage layer for AI verified and validated datasets contributed to a campaign. Upon creation, a dedicated storage bucket is provisioned on Akave, a decentralized Filecoin-based storage solution. Participants upload data directly to the campaign’s Akave bucket.
 
-- Akave also serves as DataHive’s decentralized storage solution, providing robust and secure file management capabilities. It acts as a decentralized hot retrieval layer, accessible via the `AkaveLinkAPI`, allowing seamless retrieval of stored contributed datasets for AI model training.
+- Akave also serves as DataHive’s decentralized storage solution, providing robust and secure file management capabilities. It acts as a decentralized hot retrieval layer, accessible via the `AkaveLinkAPI`, allowing seamless retrieval of stored contributed datasets for on-demand AI model training.
 
 **Key Functionalities:**
 - **Bucket Management**: Create, list, and retrieve detailed information about buckets.
@@ -65,7 +90,8 @@ All Akave operations raise `AkaveLinkAPIError` exceptions on failure, providing 
 
 
 
-### Lilypad Integration: Advanced Multi-Agent AI Workflow
+### Lilypad Integration
+**Advanced Multi-Agent AI Workflow**
 
 **Overview**  
 Lilypad is integrated into DataHive as the core engine driving its multi-agent AI verification workflows. Utilizing diverse AI models dynamically selected based on campaign needs, Lilypad ensures the authenticity and accuracy of data submissions.
@@ -112,7 +138,7 @@ print(f"Score: {result.score}, Reason: {result.reason}")
 
 
 
-### AI Multi-Agent Workflow (StateGraph Implementation)
+### Lilypad Multi-Agent Workflow (StateGraph)
 
 DataHive leverages `StateGraph` to structure the interaction between AI agents:
 
@@ -182,3 +208,51 @@ The system consists of several interconnected smart contracts:
 
    - Used for campaign payments
    - Used for platform fees
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.8+
+- Node.js 14+
+- Docker (optional, for local development)
+- A Filecoin wallet with some FIL for storage
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-org/datahive.git
+   cd datahive
+   ```
+
+2. **Backend setup**
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   ```
+
+3. **Frontend setup**
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+4. **Environment variables**
+   Copy `.env.example` to `.env` and fill in your keys for:
+   - `FILECOIN_API_KEY`
+   - `AKAVE_API_URL` & `AKAVE_API_KEY`
+   - `LILYPAD_API_KEY`
+   - `DATABASE_URL`
+
+5. **Run locally**
+   ```bash
+   # In backend/
+   uvicorn app.main:app --reload
+
+   # In frontend/
+   npm run dev
+   ```
+
