@@ -24,6 +24,7 @@ interface CampaignRewardsData {
   totalBudget: string;
   minDataCount: string;
   maxDataCount: string;
+  isCsvOnlyCampaign: boolean;
 }
 
 interface CampaignData {
@@ -46,6 +47,7 @@ interface ValidationErrors {
     totalBudget?: string;
     minDataCount?: string;
     maxDataCount?: string;
+    isCsvOnlyCampaign?: string;
   };
 }
 
@@ -81,6 +83,7 @@ const defaultCampaignData: CampaignData = {
     totalBudget: '',
     minDataCount: '',
     maxDataCount: '',
+    isCsvOnlyCampaign: false,
   },
 };
 
@@ -241,7 +244,7 @@ export const CampaignProvider: React.FC<{ children: ReactNode }> = ({
             ...newErrors.rewards,
             totalBudget: `Total budget must be at least ${totalCostWithFees.toFixed(
               2
-            )} MOVE to cover rewards and platform fees`,
+            )} DHT to cover rewards and platform fees`,
           };
         }
         break;

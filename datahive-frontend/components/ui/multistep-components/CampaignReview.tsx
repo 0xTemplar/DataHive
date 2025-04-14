@@ -114,7 +114,7 @@ const CampaignReview = () => {
                   <span className="text-[#f5f5faf4] font-medium text-lg">
                     {rewards.unitPrice}
                   </span>
-                  <span className="text-[#f5f5fa7a]">MOVE</span>
+                  <span className="text-[#f5f5fa7a]">DHT</span>
                 </div>
               </div>
               <div className="flex flex-col gap-1">
@@ -123,7 +123,7 @@ const CampaignReview = () => {
                   <span className="text-[#f5f5faf4] font-medium text-lg">
                     {rewards.totalBudget}
                   </span>
-                  <span className="text-[#f5f5fa7a]">MOVE</span>
+                  <span className="text-[#f5f5fa7a]">DHT</span>
                 </div>
               </div>
             </div>
@@ -164,7 +164,7 @@ const CampaignReview = () => {
                     Rate
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-[#f5f5fa7a] uppercase tracking-wider">
-                    Amount (MOVE)
+                    Amount (DHT)
                   </th>
                 </tr>
               </thead>
@@ -186,7 +186,7 @@ const CampaignReview = () => {
                     Total Rewards
                   </td>
                   <td className="px-6 py-4 text-sm text-[#f5f5fa7a]">
-                    {maxSubmissions} × {rewardPerSubmission} MOVE
+                    {maxSubmissions} × {rewardPerSubmission} DHT
                   </td>
                   <td className="px-6 py-4 text-right text-sm font-medium text-[#f5f5faf4]">
                     {totalRewards.toFixed(2)}

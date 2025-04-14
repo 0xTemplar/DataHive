@@ -20,7 +20,7 @@ interface SubmitDataModalProps {
 const steps = [
   { id: 1, name: 'Upload Data', icon: CloudArrowUpIcon },
   { id: 2, name: 'AI Verification', icon: SparklesIcon },
-  { id: 3, name: 'Encrypt Data', icon: LockClosedIcon },
+  { id: 3, name: 'Upload Data', icon: LockClosedIcon },
   { id: 4, name: 'Success', icon: CheckCircleIcon },
 ];
 

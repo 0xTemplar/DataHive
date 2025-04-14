@@ -44,8 +44,7 @@ interface FileInfo {
 }
 
 // EC2 server endpoint
-const storageServerEndpoint =
-  'http://ec2-44-200-196-16.compute-1.amazonaws.com:8000';
+const storageServerEndpoint = process.env.NEXT_PUBLIC_STORAGE_SERVER_ENDPOINT;
 const baseUrl = process.env.NEXT_PUBLIC_BACKEND_BASE_URL;
 
 const BulkExportModal: React.FC<BulkExportModalProps> = ({
