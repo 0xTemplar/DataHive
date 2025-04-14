@@ -237,6 +237,7 @@ The system consists of several interconnected smart contracts:
 ```bash
    cd backend
    poetry shell
+   poetry install
    eval $(poetry env activate)
    uvicorn app.main:app --reload
    ```
