@@ -88,7 +88,7 @@ response = llm.invoke(
 )
 print(response.content)
 ```
-[code-sample](backend/app/ai_verification/lilypad.py)
+[Code Implementation](backend/app/ai_verification/lilypad.py)
 
 **AI Verification Workflow:**
 The AI Verification System employs Lilypad to execute a sophisticated, multi-stage workflow:
@@ -105,7 +105,7 @@ verification_system = AIVerificationSystem(redis_pool=redis_pool)
 result = verification_system.verify(campaign, file_path, wallet_address)
 print(f"Score: {result.score}, Reason: {result.reason}")
 ```
-[code-sample](backend/app/ai_verification/services.py)
+[Code Implementation](backend/app/ai_verification/services.py)
 
 
 
@@ -136,8 +136,8 @@ workflow.add_edge("finalize_phase", END)
 
 chain = workflow.compile()
 ```
-[code-sample](backend/app/ai_verification/services.py)
-[code-sample-agent](backend/app/ai_verification/agent.py)
+[Code Implementation](backend/app/ai_verification/services.py)
+[Code Sample Agent](backend/app/ai_verification/agent.py)
 
 
 
