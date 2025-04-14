@@ -29,7 +29,7 @@ from app.ai_verification.akave import AkaveLinkAPI, AkaveLinkAPIError  # Assumin
 
 # Configuration
 BUCKET_NAME = "ml-workflow"
-API_BASE_URL = "http://ec2-44-200-196-16.compute-1.amazonaws.com:8000"
+API_BASE_URL = "https://akave.poeai.app/"
 
 def initialize_akave_client():
     """Initialize and configure the Akave client with bucket"""

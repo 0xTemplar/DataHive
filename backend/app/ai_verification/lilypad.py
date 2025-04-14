@@ -302,8 +302,8 @@ def get_long_context_llm(rate_limiter: BaseRateLimiter | None = None):
 def get_vision_llm(rate_limiter: BaseRateLimiter | None = None):
     """Get a multimodal vision-language model"""
     return LilypadLLMWrapper(
-        # model="llava:7b",
-        model="gemma3:4b",
+        model="llava:7b",
+        # model="gemma3:4b",
         temperature=0.2,
         rate_limiter=rate_limiter
     )

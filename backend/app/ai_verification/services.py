@@ -3,6 +3,7 @@ import mimetypes
 import openai
 import logging
 import os
+import uuid
 import shutil
 import subprocess
 import random
@@ -23,6 +24,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.campaigns.models import Campaign
 from app.ai_verification.akave import AkaveLinkAPI
 from app.ai_verification.lilypad import get_fast_llm, get_long_context_llm, get_code_llm, get_vision_llm
+from app.core.redis import get_redis_connection
 from app.core.constants import LILYPAD_API_KEY
 from openai import OpenAI
 from redis.asyncio import Redis
@@ -593,3 +595,31 @@ def store_workflow_interactions(campaign: Campaign, interactions: str, storage: 
         logger.info(f"Campaign {campaign.onchain_campaign_id} updated with workflow_bucket_name: {bucket_name}")
 
     return upload_response, bucket_name
+
+
+def main():
+    # Setup logging to print to console.
+    logging.basicConfig(level=logging.INFO)
+
+    # Define path for a test image.
+    test_image_path = "/Users/naija/Documents/gigs/DataHive/backend/books/ad2aed0a5fe24f69861ea1bc9ba76302.jpg"
+
+    # Instantiate dummy Redis pool.
+    redis_pool = get_redis_connection()
+
+    # Create an instance of the AIVerificationSystem with dummy LLMs and Redis.
+    ai_system = AIVerificationSystem(redis_pool=redis_pool, openai_api_key=LILYPAD_API_KEY)
+
+    # Create a dummy campaign.
+    campaign = Campaign(description="Test Campaign for Image Verification for ages")
+
+    # Run the image verification workflow.
+    result = ai_system.verify_image(campaign, test_image_path)
+
+    # Print out the final verification result.
+    print("Final Image Verification Result:")
+    print(f"Score: {result.score}")
+    print(f"Reason: {result.reason}")
+
+# if __name__ == "__main__":
+#     main()

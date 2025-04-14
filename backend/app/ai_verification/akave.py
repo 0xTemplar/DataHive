@@ -6,7 +6,7 @@ class AkaveLinkAPIError(Exception):
     pass
 
 class AkaveLinkAPI:
-    def __init__(self, base_url="http://ec2-44-200-196-16.compute-1.amazonaws.com:8000"):
+    def __init__(self, base_url="https://akave.poeai.app/"):
         """
         Initialize the API client.
         

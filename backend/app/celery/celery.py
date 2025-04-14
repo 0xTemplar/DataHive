@@ -78,7 +78,7 @@ def run_training_task(campaign_id: str, training_status_id: str, training_params
         bucket_name = campaign.bucket_name
 
         # Initialize the Akave Link client
-        akave = AkaveLinkAPI(base_url="http://ec2-44-200-196-16.compute-1.amazonaws.com:8000")
+        akave = AkaveLinkAPI(base_url="https://akave.poeai.app/")
         
         # List CSV files in the bucket
         files = akave.list_files(bucket_name)  # Assume this returns a list of filenames
