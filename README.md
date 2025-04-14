@@ -36,7 +36,9 @@ DataHive offers a comprehensive set of features for both data contributors and c
 ### Akave Integration: Decentralized Storage for AI-ready Data
 
 **Overview**  
-Akave serves as DataHive’s decentralized storage solution, providing robust and secure file management capabilities. It acts as a decentralized hot retrieval layer, accessible via the `AkaveLinkAPI`, allowing seamless interaction with stored datasets.
+- Akave acts as storage layer for AI verified and validated datasets contributed to a campaign. Upon creation, a dedicated storage bucket is provisioned on Akave, a decentralized Filecoin-based storage solution. Participants upload data directly to the campaign’s Akave bucket.
+
+- Akave also serves as DataHive’s decentralized storage solution, providing robust and secure file management capabilities. It acts as a decentralized hot retrieval layer, accessible via the `AkaveLinkAPI`, allowing seamless interaction with stored datasets.
 
 **Key Functionalities:**
 - **Bucket Management**: Create, list, and retrieve detailed information about buckets.
