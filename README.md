@@ -14,6 +14,8 @@ DataHive offers a comprehensive set of features for both data contributors and c
 
 - **Text & Image Verification with AI & Vision Model** 🤖📸: Automated checks on text and image submissions using an **advanced multiagent AI workflow on Lilypad to dynamically select and combine the most appropriate models to ensure authenticity and accuracy**. The AI agents act as campaign verifiers.
 
+- RSA Gated Datasets: All submitted campaign datasets are locked behind a
+
 - **On‑demand Model Training**: Instantly spin up custom training pipelines using your campaign’s verified datasets, with Akave as decentralized hot retrieval layer (**via our AkaveLinkAPI**) 
 
 - **Reputation System** 🌟: Build your onchain, tamper proof reputation as a contributor by collecting badges, earning higher quality scores, and unlocking higher-paying campaigns based on your submission history.
@@ -36,7 +38,7 @@ DataHive offers a comprehensive set of features for both data contributors and c
 **Overview**  
 - Akave acts as storage layer for AI verified and validated datasets contributed to a campaign. Upon creation, a dedicated storage bucket is provisioned on Akave, a decentralized Filecoin-based storage solution. Participants upload data directly to the campaign’s Akave bucket.
 
-- Akave also serves as DataHive’s decentralized storage solution, providing robust and secure file management capabilities. It acts as a decentralized hot retrieval layer, accessible via the `AkaveLinkAPI`, allowing seamless interaction with stored datasets.
+- Akave also serves as DataHive’s decentralized storage solution, providing robust and secure file management capabilities. It acts as a decentralized hot retrieval layer, accessible via the `AkaveLinkAPI`, allowing seamless retrieval of stored contributed datasets for AI model training.
 
 **Key Functionalities:**
 - **Bucket Management**: Create, list, and retrieve detailed information about buckets.
