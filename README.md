@@ -140,8 +140,6 @@ chain = workflow.compile()
 [Code Sample Agent](backend/app/ai_verification/agent.py)
 
 
-
-
 ### Upcoming Standard Library for Lilypad
 
 DataHive is currently developing a comprehensive [**Python Standard Library**](https://github.com/0xTemplar/lilypad-python) to streamline integration with all Lilypad modules, simplifying model management, inference operations, and multi-agent workflow implementations for the broader developer community.
@@ -150,3 +148,35 @@ This library aims to standardize best practices, accelerate development cycles, 
 
 
 These integrations significantly enhance DataHive’s capability to provide secure, efficient, and trustworthy AI dataset verification and management, strengthening its role as a leading decentralized data marketplace.
+
+### Smart Contracts
+
+The system consists of several interconnected smart contracts:
+
+1. **CampaignManager**: Manages data collection campaigns
+
+   - Create, update, activate, and deactivate campaigns
+   - Track campaign budgets and submissions
+   - Handle campaign rewards
+
+2. **ContributionManager**: Manages data submissions
+
+   - Validate and store contributions
+   - Process verification scores
+   - Trigger reward payments
+
+3. **EscrowManager**: Handles token escrow and payments
+
+   - Holds campaign funds in escrow
+   - Releases rewards to contributors
+
+4. **Reputation**: Tracks user reputation and badges
+
+   - Assigns reputation points for contributions and payments
+   - Awards badges based on activity thresholds
+   - Maintains reputation leaderboards
+
+5. **DataHiveToken**: ERC20 token used for platform rewards
+
+   - Used for campaign payments
+   - Used for platform fees
