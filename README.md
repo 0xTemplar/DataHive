@@ -222,7 +222,7 @@ The system consists of several interconnected smart contracts:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-org/datahive.git
+   git clone https://github.com/0xTemplar/DataHive.git
    cd datahive
    ```
 
@@ -236,7 +236,6 @@ The system consists of several interconnected smart contracts:
 
 ```bash
    cd backend
-   pip install -r requirements.txt
    poetry shell
    eval $(poetry env activate)
    uvicorn app.main:app --reload
@@ -256,7 +255,7 @@ The system consists of several interconnected smart contracts:
 1. Clone the repository:
 
    ```
-   git clone https://github.com/yourusername/datahive-contract.git
+   git clone https://github.com/0xTemplar/DataHive.git
    cd datahive-contract
    ```
 
