@@ -17,6 +17,7 @@
   - [Lilypad Multi-Agent Workflow (StateGraph)](#ai-multi-agent-workflow-stategraph)
   - [Upcoming Standard Library](#upcoming-standard-library-for-lilypad)
 - [Smart Contracts](#smart-contracts)
+- [Screenshots](#screenshots)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
@@ -207,6 +208,20 @@ The system consists of several interconnected smart contracts:
    - Used for campaign payments
    - Used for platform fees
 
+---
+## Screenshots
+
+### Active Campaigns
+<img width="1440" alt="Screenshot 2025-04-15 at 1 55 55 PM" src="https://github.com/user-attachments/assets/7491c2b0-916f-4eb6-8532-9244c6d03146" />
+
+### Model Training
+![Screenshot 2025-04-15 at 1 57 24 PM](https://github.com/user-attachments/assets/88b9d83c-ada2-4fea-92ed-c24489340d55)
+
+### Campaign Contributions
+![Screenshot 2025-04-15 at 1 59 09 PM](https://github.com/user-attachments/assets/b1a34deb-70a8-4219-9e6f-d9e11969fbc9)
+
+### Campaign Details Page
+<img width="1440" alt="Screenshot 2025-04-15 at 1 52 45 PM" src="https://github.com/user-attachments/assets/734aa9e3-2586-4195-9477-18ec288a5b7e" />
 ---
 
 ## Getting Started
