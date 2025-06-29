@@ -7,7 +7,7 @@ export GOOGLE_APPLICATION_CREDENTIALS := $(PWD)/auth.json
 
 install:
 	@echo "↳ Installing Poetry dependencies…"
-	poetry install
+	poetry install --no-root
 
 run:
 	@echo "↳ Starting API server via Poetry…"
