@@ -6,10 +6,9 @@ from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 
 from app.campaigns.models import Campaign, Contribution, Activity
-from app.campaigns.schemas import CampaignCreate, CampaignResponse, ContributionCreate, ContributionResponse, CampaignsActiveResponse, ContributionsListResponse, WalletCampaignsResponse, WeeklyAnalyticsResponse
+from app.campaigns.schemas import CampaignCreate, CampaignResponse, ContributionCreate, ContributionResponse, CampaignsActiveResponse, ContributionsListResponse, WalletCampaignsResponse, WeeklyAnalyticsResponse, DeleteResponse
 from app.campaigns.services import serialize_campaign, track_campaign_activity_overall, track_contribution_activity, get_quality_score_category
 from app.core.database import get_session
-from app.ai_verification import AkaveLinkAPI, AkaveLinkAPIError
 
 
 logging.basicConfig(level=logging.INFO)
@@ -17,18 +16,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# @router.delete("/campaigns/{campaign_id}", summary="Delete a campaign by its ID", response_model=dict)
-# def delete_campaign(campaign_id: str, db: Session = Depends(get_session)):
-#     """
-#     Delete the campaign with the given campaign_id.
-#     """
-#     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-#     if not campaign:
-#         raise HTTPException(status_code=404, detail="Campaign not found")
-    
-#     db.delete(campaign)
-#     db.commit()
-#     return {"detail": "Campaign deleted successfully"}
 
 
 @router.get("/all", response_model=List[CampaignResponse])
@@ -39,46 +26,15 @@ def get_all_campaigns(db: Session = Depends(get_session)):
         .order_by(Campaign.created_at.desc())
         .all()
     )
-    
-    storage = AkaveLinkAPI()
     result = []
-    
     for campaign in db_campaigns:
-        try:
-            contributions_count = len(campaign.contributions)
-            
-            # Only create bucket if it doesn't exist
-            if not campaign.bucket_name:
-                bucket_name = campaign.title.lower().replace(" ", "_")
-                
-                # Attempt bucket creation
-                try:
-                    bucket_data = storage.create_bucket(bucket_name)
-                    campaign.bucket_name = bucket_name
-                    db.commit()
-                except AkaveLinkAPIError as e:
-                    if "already exists" in str(e):
-                        # Bucket exists, just assign the name
-                        campaign.bucket_name = bucket_name
-                        db.commit()
-                    else:
-                        # Log error but continue processing
-                        print(f"Error creating bucket: {str(e)}")
-                        campaign.bucket_name = None
-
-            # Get unique contributions count
-            unique_count = db.query(func.count(func.distinct(Contribution.contributor))) \
-                .filter(Contribution.campaign_id == campaign.id).scalar()
-                
-            # Serialize campaign
-            serialized = serialize_campaign(campaign, contributions_count)
-            serialized["unique_contributions_count"] = unique_count
-            result.append(serialized)
-            
-        except Exception as e:
-            print(f"Error processing campaign {campaign.id}: {str(e)}")
-            continue
-
+        contributions_count = len(campaign.contributions)
+        unique_count = db.query(func.count(func.distinct(Contribution.contributor))) \
+                         .filter(Contribution.campaign_id == campaign.id).scalar()
+        # Extend the serialized campaign with the unique contributions count.
+        serialized = serialize_campaign(campaign, contributions_count)
+        serialized["unique_contributions_count"] = unique_count
+        result.append(serialized)
     return result
 
 
@@ -117,21 +73,13 @@ def get_campaigns_created_by_wallet(
 
 @router.post("/create-campaigns", response_model=CampaignResponse)
 def create_campaign(campaign: CampaignCreate, db: Session = Depends(get_session)):
-    try:
-        storage = AkaveLinkAPI()
-        db_campaign = Campaign(**campaign.dict())
-        db_campaign.is_active = True
-        db_campaign.bucket_name = campaign.title.lower().replace(" ", "_")
-        print("Creating bucket:", db_campaign.bucket_name)
-        bucket = storage.create_bucket(str(f"{db_campaign.bucket_name}-{db_campaign.id}"))
-        print("Bucket creation response:", bucket) 
-        db.add(db_campaign)
-        db.commit()
-        db.refresh(db_campaign)
-        # New campaign: no contributions, so both counts are 0.
-        return {**serialize_campaign(db_campaign, 0), "unique_contributions_count": 0}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create campaign: {str(e)}")
+    db_campaign = Campaign(**campaign.dict())
+    db_campaign.is_active = True
+    db.add(db_campaign)
+    db.commit()
+    db.refresh(db_campaign)
+    # New campaign: no contributions, so both counts are 0.
+    return {**serialize_campaign(db_campaign, 0), "unique_contributions_count": 0}
 
 
 @router.get("/active", response_model=List[CampaignsActiveResponse])
@@ -153,6 +101,7 @@ def get_active_campaigns(db: Session = Depends(get_session)):
             "creator_wallet_address": str(campaign.creator_wallet_address),
             "unit_price": campaign.unit_price,
             "campaign_type": campaign.campaign_type,
+            "file_type": campaign.file_type,
             "total_budget": float(campaign.total_budget),
             "max_data_count": int(campaign.max_data_count),
             "current_contributions": len(campaign.contributions),
@@ -280,6 +229,56 @@ def get_contributions(
     )
 
 
+
+@router.delete("/delete-contributions/{onchain_campaign_id}", response_model=DeleteResponse)
+def delete_contributions(onchain_campaign_id: str, db: Session = Depends(get_session)):
+    """
+    Deletes all contributions associated with a given onchain_campaign_id.
+    """
+    logger.info(f"Received request to delete contributions for onchain_campaign_id: {onchain_campaign_id}")
+
+    try:
+        # Step 1: Find the campaign using the onchain_campaign_id to get its internal ID.
+        campaign = db.query(Campaign).filter(Campaign.onchain_campaign_id == onchain_campaign_id).first()
+
+        if not campaign:
+            logger.warning(f"Delete failed: Campaign with onchain_id '{onchain_campaign_id}' not found.")
+            raise HTTPException(status_code=404, detail="Campaign not found")
+
+        logger.info(f"Found campaign '{campaign.title}' (Internal ID: {campaign.id}). Preparing to delete associated contributions.")
+
+        # Step 2: Build a query to target the contributions for deletion.
+        contributions_query = db.query(Contribution).filter(Contribution.campaign_id == campaign.id)
+        
+        # Get a count of records that will be deleted for the response message.
+        num_to_delete = contributions_query.count()
+
+        if num_to_delete == 0:
+            logger.info("No contributions found for this campaign. Nothing to delete.")
+            return DeleteResponse(
+                message="No contributions found for the specified campaign. Nothing was deleted.",
+                deleted_count=0
+            )
+
+        # Step 3: Execute the bulk delete operation.
+        # `synchronize_session=False` is an efficient strategy for bulk deletes.
+        contributions_query.delete(synchronize_session=False)
+
+        # Step 4: Commit the transaction to make the deletion permanent.
+        db.commit()
+
+        logger.info(f"Successfully deleted {num_to_delete} contributions for campaign ID {campaign.id}.")
+
+        return DeleteResponse(
+            message=f"Successfully deleted all {num_to_delete} contributions for campaign '{onchain_campaign_id}'.",
+            deleted_count=num_to_delete
+        )
+
+    except Exception as e:
+        # In case of any error during the process, roll back the transaction.
+        db.rollback()
+        logger.error(f"An error occurred during deletion: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An internal server error occurred during the deletion process.")
 
 
 @router.get("/wallet/{wallet_address}/campaign-details", response_model=WalletCampaignsResponse, summary="Get campaigns created and contributed to by a wallet")
