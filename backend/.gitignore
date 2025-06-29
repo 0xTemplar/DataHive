@@ -2,18 +2,27 @@
 __pycache__/
 *.py[cod]
 *$py.class
+books/
+
+.DS_Store
+
+TODO
+NOTES
+data/
+*.tar.gz
+MELD.Raw/
+training_setup/
+directory_structure.txt
+references
 
 # C extensions
 *.so
-
-books/
-llm.py
-/app/ai_verification/llm.py
 
 # Distribution / packaging
 .Python
 build/
 .vscode/
+test.py
 develop-eggs/
 dist/
 downloads/
